@@ -1,0 +1,116 @@
+# ----------------------------------
+# Java / IntelliJ / Gradle / Maven
+# ----------------------------------
+
+# Compiled class files
+*.class
+
+# Log files
+*.log
+
+# BlueJ files
+*.ctxt
+
+# Mobile Tools for Java (J2ME)
+.mtj.tmp/
+
+# Package files
+*.jar
+*.war
+*.ear
+
+# Virtual machine crash logs
+hs_err_pid*
+replay_pid*
+
+# ----------------------------
+# IntelliJ IDEA
+# ----------------------------
+.idea/
+*.iml
+out/
+!.idea/codeStyles/
+
+# IntelliJ build folders
+/out
+/build
+target/
+
+# JetBrains IDE-specific caches
+.idea/**/workspace.xml
+.idea/**/tasks.xml
+.idea/**/dictionaries
+.idea/**/shelf/
+.idea/**/httpRequests/
+.idea/**/dataSources/
+.idea/**/dataSources.ids
+.idea/**/dataSources.xml
+.idea/**/dynamic.xml
+.idea/**/uiDesigner.xml
+.idea/**/modules.xml
+
+# ----------------------------
+# Eclipse (if you ever use it)
+# ----------------------------
+.classpath
+.project
+.settings/
+
+# ----------------------------
+# Gradle
+# ----------------------------
+.gradle/
+build/
+
+# ----------------------------
+# Maven
+# ----------------------------
+target/
+
+# ----------------------------
+# Logs & temp files
+# ----------------------------
+*.tmp
+*.swp
+*.bak
+*.old
+*.DS_Store
+Thumbs.db
+
+# ----------------------------
+# Environment / Secrets
+# ----------------------------
+.env
+.env.*
+*.key
+*.pem
+*.crt
+
+# ----------------------------
+# Node.js (in case you mix JS tools)
+# ----------------------------
+node_modules/
+npm-debug.log
+yarn-error.log
+
+# ----------------------------
+# OS / Editor junk
+# ----------------------------
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Windows
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# VSCode
+.vscode/
+
+# ----------------------------
+# Custom project-specific
+# ----------------------------
+# Ignore your references file if it’s local data
+references.txt
