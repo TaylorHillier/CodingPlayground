@@ -3,15 +3,27 @@
 #include <stdbool.h>
 
 // Update this with your A number
-char a_num[] = "A01171951";
+char a_num[] = "01171951";
 
-typedef struct numAtFirstIndex {
+typedef struct numAtFirstIndex
+{
     int row;
     char value;
 } numAtFirst;
 
-void zoomArray(char ***arr, float n, int *rows, int *cols)
+void zoomArray(char ***arr, 
+               float n, 
+               int *rows, 
+               int *cols, 
+               char* outputFileName)
 {
+
+    FILE *outputFile = fopen(outputFileName, "w");
+    if (outputFile == NULL)
+    {
+        perror("Error opening input file");
+        
+    }
 
     int newRows = *rows * n;
     int newCols = *cols * n;
@@ -19,78 +31,63 @@ void zoomArray(char ***arr, float n, int *rows, int *cols)
 
     numArr = malloc(*rows * sizeof(*numArr));
 
-    printf("%d rows \n", newRows);
+    const int START_INDEX = 0;
 
-    const int START_INDEX  = 0;
+    char lastFirstColRead = (*arr)[START_INDEX][START_INDEX];
+    int mappedRows = START_INDEX;
 
-    char lastFirstColRead = (*arr)[START_INDEX][START_INDEX ];
-    int  mappedRows     = START_INDEX ;
-
-    numArr[START_INDEX ].row = mappedRows;
-    numArr[START_INDEX ].value = lastFirstColRead;
+    numArr[START_INDEX].row = mappedRows;
+    numArr[START_INDEX].value = lastFirstColRead;
     mappedRows++;
-     printf("%d, %c \n", numArr[START_INDEX ].row,  numArr[START_INDEX ].value);
 
-    for(int i = 1; i < *rows; ++i)
+    for (int i = 1; i < *rows; ++i)
     {
         char currentFirstCol = (*arr)[i][0];
 
-        if(currentFirstCol == lastFirstColRead) continue;
+        if (currentFirstCol == lastFirstColRead)
+            continue;
 
-        numArr[i].row   = i * n;
-        numArr[i].value = (*arr)[i][0];
-          printf("%d, %c \n", numArr[i].row,  numArr[i].value);
+        numArr[mappedRows].row = i * n;
+        numArr[mappedRows].value = (*arr)[i][0];
+
         lastFirstColRead = currentFirstCol;
+
         mappedRows++;
     }
 
-    char **new_array = (char **)malloc(newRows * sizeof *new_array);
-
-    for(int i = 0; i < newRows; i++)
-    {
-        new_array[i] = (char*)malloc(newCols * sizeof *new_array[i]);
-    }
-
     int runIndex = 0;
-    for(int i = 0; i < newRows; i++)
+    for (int i = 0; i < newRows; i++)
     {
         int nextBreakRow = 0;
 
-        if(runIndex + 1 < mappedRows)
+        if (runIndex + 1 < mappedRows)
         {
             nextBreakRow = numArr[runIndex + 1].row;
         }
-        else 
+        else
         {
             nextBreakRow = newRows;
         }
 
-        //printf("%d i, %d break", i, nextBreakRow);
-        if(i >= nextBreakRow && runIndex + 1 < mappedRows)
+        if (i >= nextBreakRow && runIndex + 1 < mappedRows)
         {
             runIndex++;
         }
 
         char valueForRow = numArr[runIndex].value;
 
-        for(int j = 0; j < newCols; j++)
+        for (int j = 0; j < newCols; j++)
         {
-            new_array[i][j] = valueForRow;
-            printf("%c", valueForRow);
+            fprintf(outputFile, "%c", valueForRow);
         }
-        printf("\n");
+
+        if (i < newRows - 1)
+        {
+            fprintf(outputFile, "\n");
+        }
     }
 
-    
-
-    for (int i = 0; i < newRows; i++)
-    {
-        free(new_array[i]);
-    }
-    free(new_array);
-
-    printf("\n\n\n");
-
+    fclose(outputFile);
 }
 
 int main(int argc, char *argv[])
@@ -106,7 +103,7 @@ int main(int argc, char *argv[])
     char **arr = NULL;
     int rows = 0, cols = 0;
     float zoomFactor = 0;
-    
+
     // Read the input array from the specified file
     FILE *file = fopen(inputFileName, "r");
     if (file == NULL)
@@ -171,7 +168,7 @@ int main(int argc, char *argv[])
     printf("\n");
 
     // Call the zoomArray function
-    zoomArray(&arr, zoomFactor, &rows, &cols);
+    zoomArray(&arr, zoomFactor, &rows, &cols, argv[2]);
 
     // Free the memory allocated for the 2D array
     for (int i = 0; i < rows; i++)
