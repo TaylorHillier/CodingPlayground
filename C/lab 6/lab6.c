@@ -5,19 +5,92 @@
 // Update this with your A number
 char a_num[] = "A01171951";
 
+typedef struct numAtFirstIndex {
+    int row;
+    char value;
+} numAtFirst;
+
 void zoomArray(char ***arr, float n, int *rows, int *cols)
 {
-    printf("%d\n", *rows);
-    printf("%f\n", n);
-    printf("%d\n", *cols);
 
-    for(int i = 0; i < *rows; i++)
+    int newRows = *rows * n;
+    int newCols = *cols * n;
+    numAtFirst *numArr = NULL;
+
+    numArr = malloc(*rows * sizeof(*numArr));
+
+    printf("%d rows \n", newRows);
+
+    const int START_INDEX  = 0;
+
+    char lastFirstColRead = (*arr)[START_INDEX][START_INDEX ];
+    int  mappedRows     = START_INDEX ;
+
+    numArr[START_INDEX ].row = mappedRows;
+    numArr[START_INDEX ].value = lastFirstColRead;
+    mappedRows++;
+     printf("%d, %c \n", numArr[START_INDEX ].row,  numArr[START_INDEX ].value);
+
+    for(int i = 1; i < *rows; ++i)
     {
-        for(int j = 0; j < *cols; j++)
-        {
-            printf("%c\n", (*arr)[i][j]);
-        }
+        char currentFirstCol = (*arr)[i][0];
+
+        if(currentFirstCol == lastFirstColRead) continue;
+
+        numArr[i].row   = i * n;
+        numArr[i].value = (*arr)[i][0];
+          printf("%d, %c \n", numArr[i].row,  numArr[i].value);
+        lastFirstColRead = currentFirstCol;
+        mappedRows++;
     }
+
+    char **new_array = (char **)malloc(newRows * sizeof *new_array);
+
+    for(int i = 0; i < newRows; i++)
+    {
+        new_array[i] = (char*)malloc(newCols * sizeof *new_array[i]);
+    }
+
+    int runIndex = 0;
+    for(int i = 0; i < newRows; i++)
+    {
+        int nextBreakRow = 0;
+
+        if(runIndex + 1 < mappedRows)
+        {
+            nextBreakRow = numArr[runIndex + 1].row;
+        }
+        else 
+        {
+            nextBreakRow = newRows;
+        }
+
+        //printf("%d i, %d break", i, nextBreakRow);
+        if(i >= nextBreakRow && runIndex + 1 < mappedRows)
+        {
+            runIndex++;
+        }
+
+        char valueForRow = numArr[runIndex].value;
+
+        for(int j = 0; j < newCols; j++)
+        {
+            new_array[i][j] = valueForRow;
+            printf("%c", valueForRow);
+        }
+        printf("\n");
+    }
+
+    
+
+    for (int i = 0; i < newRows; i++)
+    {
+        free(new_array[i]);
+    }
+    free(new_array);
+
+    printf("\n\n\n");
+
 }
 
 int main(int argc, char *argv[])
