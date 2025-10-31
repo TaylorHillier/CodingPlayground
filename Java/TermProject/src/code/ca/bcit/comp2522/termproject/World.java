@@ -3,6 +3,8 @@ package ca.bcit.comp2522.termproject;
 import java.io.InputStream;
 import java.util.*;
 
+import java.util.Random;
+
 public class World
 {
     final                Map<String, Country> countries;
@@ -27,7 +29,7 @@ public class World
 
             if (inputStream == null)
             {
-                System.out.println("File not found");
+                //System.out.println("File not found");
                 continue;
             }
 
@@ -72,7 +74,7 @@ public class World
                     {
                         country = new Country(key, city, array);
                         countries.put(key, country);
-                        System.out.println(country);
+                        //System.out.println(country);
                         key   = null;
                         city  = null;
                         facts = new ArrayList<>();
@@ -80,5 +82,17 @@ public class World
                 }
             }
         }
+    }
+
+    public Country getRandomCountry()
+    {
+        final Set<String> keySet = countries.keySet();
+        final Object[] keys = keySet.toArray();
+
+        final Random random = new Random();
+        final int randomIndex = random.nextInt(keys.length);
+
+        final String randomKey = (String) keys[randomIndex];
+        return countries.get(randomKey);
     }
 }

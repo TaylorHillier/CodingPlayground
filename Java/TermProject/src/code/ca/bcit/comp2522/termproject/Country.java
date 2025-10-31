@@ -1,5 +1,7 @@
 package ca.bcit.comp2522.termproject;
 
+import java.util.Random;
+
 public class Country
 {
     private final String   name;
@@ -17,7 +19,7 @@ public class Country
         this.facts           = facts;
     }
 
-    public String getName()
+    public String getCountryName()
     {
         return name;
     }
@@ -30,6 +32,19 @@ public class Country
     public String[] getFacts()
     {
         return facts;
+    }
+
+    public String getRandomFactAtIndex()
+    {
+        if (facts == null)
+        {
+            throw new NullPointerException("Facts is not instated yet");
+        }
+
+        final Random randomIndex;
+        randomIndex = new Random();
+
+        return facts[randomIndex.nextInt(3)];
     }
 
     @Override
