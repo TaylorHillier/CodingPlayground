@@ -9,18 +9,41 @@ public class Main
         char input;
         final Scanner scan = new Scanner(System.in);
 
-        System.out.println("Press W to play the Word game.");
-        System.out.println("Press N to play the Number game.");
-        System.out.println("Press M to play the <your game's name> game.");
-        System.out.println("Press Q to quit.");
-
-        input = scan.next().toUpperCase().charAt(0);
-
-        if (input == 'W')
+        while (true)
         {
-            WordGame wordGame = new WordGame();
-            wordGame.playWordGame();
+            System.out.println("Press W to play the Word game.");
+            System.out.println("Press N to play the Number game.");
+            System.out.println("Press M to play the <your game's name> game.");
+            System.out.println("Press Q to quit.");
+
+            String rawInput = scan.nextLine().trim().toUpperCase();
+            input = rawInput.charAt(0);
+
+            if (input == 'W')
+            {
+                WordGame wordGame = new WordGame(scan);
+                wordGame.playWordGame();
+            }
+            else if (input == 'N')
+            {
+
+            }
+            else if (input == 'M')
+            {
+
+            }
+            else if (input == 'Q')
+            {
+                break;
+            }
+            else
+            {
+
+            }
+
         }
+
+        scan.close();
     }
 
 }
