@@ -17,11 +17,10 @@ public class Score
 {
     private final String formattedDateTimePlayed;
 
-    private final LocalDateTime dateTimePlayed;
-    private final int           numGamesPlayed;
-    private final int           numCorrectFirstAttempt;
-    private final int           numCorrectSecondAttempt;
-    private final int           numIncorrectTwoAttempts;
+    private final int numGamesPlayed;
+    private final int numCorrectFirstAttempt;
+    private final int numCorrectSecondAttempt;
+    private final int numIncorrectTwoAttempts;
 
     private final int totalScore;
 
@@ -31,7 +30,6 @@ public class Score
                  final int numCorrectSecondAttempt,
                  final int numIncorrectTwoAttempts)
     {
-        this.dateTimePlayed          = dateTimePlayed;
         this.numGamesPlayed          = numGamesPlayed;
         this.numCorrectFirstAttempt  = numCorrectFirstAttempt;
         this.numCorrectSecondAttempt = numCorrectSecondAttempt;

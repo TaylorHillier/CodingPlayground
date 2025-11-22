@@ -21,12 +21,17 @@ public class Main
 
             if (input == 'W')
             {
-                WordGame wordGame = new WordGame(scan);
+                final WordGame wordGame;
+                wordGame = new WordGame(scan);
+
                 wordGame.playWordGame();
             }
             else if (input == 'N')
             {
+                final NumberGameInterface numberGame;
+                numberGame = new NumberGameInterface();
 
+                numberGame.launchNumberGame(args);
             }
             else if (input == 'M')
             {
