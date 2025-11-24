@@ -13,8 +13,62 @@ import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
 
-public class Score
+/**
+ * Represents scoring data for a gameplay session, and provides utilities
+ * to persist scores, read them back, and compute high-score statistics.
+ */
+public final class Score
 {
+    // -------------------------------------------------------
+    // Directory & File Constants
+    // -------------------------------------------------------
+
+    private static final String SCORES_DIRECTORY_NAME = "scores";
+    private static final String SCORES_FILE_NAME      = "scores.txt";
+
+    // -------------------------------------------------------
+    // Time & Formatting Constants
+    // -------------------------------------------------------
+
+    private static final String            DATE_TIME_PATTERN   = "yyyy-MM-dd HH:mm:ss";
+    private static final DateTimeFormatter DATE_TIME_FORMATTER =
+        DateTimeFormatter.ofPattern(DATE_TIME_PATTERN);
+
+    // Index constants for "yyyy-MM-dd HH:mm:ss".split(" ")
+    private static final int DATE_TIME_COMPONENT_INDEX_DATE = 0;
+    private static final int DATE_TIME_COMPONENT_INDEX_TIME = 1;
+
+    private static final int CSV_INDEX_DATE_TIME      = 0;
+    private static final int CSV_INDEX_GAMES_PLAYED   = 1;
+    private static final int CSV_INDEX_CORRECT_FIRST  = 2;
+    private static final int CSV_INDEX_CORRECT_SECOND = 3;
+    private static final int CSV_INDEX_INCORRECT      = 4;
+
+    // -------------------------------------------------------
+    // Human-readable text prefixes
+    // -------------------------------------------------------
+
+    private static final String PREFIX_DATE_TIME      = "Date and Time: ";
+    private static final String PREFIX_GAMES_PLAYED   = "Games played: ";
+    private static final String PREFIX_CORRECT_FIRST  = "Correct First Attempts: ";
+    private static final String PREFIX_CORRECT_SECOND = "Correct second attempts: ";
+    private static final String PREFIX_INCORRECT      = "Incorrect attempts: ";
+    private static final String PREFIX_TOTAL_SCORE    = "Total score: ";
+
+    // -------------------------------------------------------
+    // Score Calculation / Parsing Constants
+    // -------------------------------------------------------
+
+    private static final int SCORE_MULTIPLIER_FIRST_ATTEMPT = 2;
+    private static final int MINIMUM_FIELDS_REQUIRED_CSV    = 5;
+
+    private static final float DEFAULT_HIGHSCORE_INITIAL_VALUE = -1.0f;
+    private static final int   ZERO_INT                        = 0;
+
+    // -------------------------------------------------------
+    // Instance Fields
+    // -------------------------------------------------------
+
     private final String formattedDateTimePlayed;
 
     private final int numGamesPlayed;
@@ -34,19 +88,14 @@ public class Score
         this.numCorrectFirstAttempt  = numCorrectFirstAttempt;
         this.numCorrectSecondAttempt = numCorrectSecondAttempt;
         this.numIncorrectTwoAttempts = numIncorrectTwoAttempts;
-        this.formattedDateTimePlayed = getCurrentTime(dateTimePlayed);
-        totalScore                   = calculateTotalScore();
+
+        formattedDateTimePlayed = getCurrentTime(dateTimePlayed);
+        totalScore              = calculateTotalScore();
     }
 
     public static String getCurrentTime(final LocalDateTime currentTime)
     {
-        final DateTimeFormatter formatter;
-        final String formattedDateTime;
-
-        formatter         = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
-        formattedDateTime = currentTime.format(formatter);
-
-        return formattedDateTime;
+        return currentTime.format(DATE_TIME_FORMATTER);
     }
 
     private static class HighScoreData
@@ -54,44 +103,48 @@ public class Score
         private final String timeOfHighScore;
         private final float  highScore;
 
-        public HighScoreData(final String timeOfHighScore,
-                             final float highScore)
+        HighScoreData(final String timeOfHighScore,
+                      final float highScore)
         {
             this.timeOfHighScore = timeOfHighScore;
             this.highScore       = highScore;
         }
-
     }
 
     public static float getHighScore() throws IOException
     {
-        HighScoreData data = getHighScoreData();
-        return data.highScore;
+        final HighScoreData highScoreData = getHighScoreData();
+        return highScoreData.highScore;
     }
 
     public static String getHighScoreTime() throws IOException
     {
-        HighScoreData data = getHighScoreData();
+        final HighScoreData highScoreData = getHighScoreData();
 
-        String[] time = data.timeOfHighScore != null ? data.timeOfHighScore.split(" ") :
-            getCurrentTime(LocalDateTime.now()).split(" ");
+        final String[] timeComponents =
+            (highScoreData.timeOfHighScore != null)
+                ? highScoreData.timeOfHighScore.split(" ")
+                : getCurrentTime(LocalDateTime.now()).split(" ");
 
-        return time[1];
+        return timeComponents[DATE_TIME_COMPONENT_INDEX_TIME];
     }
 
     public static String getHighScoreDate() throws IOException
     {
-        HighScoreData data = getHighScoreData();
+        final HighScoreData highScoreData = getHighScoreData();
 
-        String[] date = data.timeOfHighScore != null ? data.timeOfHighScore.split(" ") :
-            getCurrentTime(LocalDateTime.now()).split(" ");
+        final String[] dateComponents =
+            (highScoreData.timeOfHighScore != null)
+                ? highScoreData.timeOfHighScore.split(" ")
+                : getCurrentTime(LocalDateTime.now()).split(" ");
 
-        return date[0];
+        return dateComponents[DATE_TIME_COMPONENT_INDEX_DATE];
     }
 
     public int calculateTotalScore()
     {
-        return (numCorrectFirstAttempt * 2) + numCorrectSecondAttempt;
+        return (numCorrectFirstAttempt * SCORE_MULTIPLIER_FIRST_ATTEMPT)
+               + numCorrectSecondAttempt;
     }
 
     public int getScore()
@@ -103,34 +156,36 @@ public class Score
     {
         try
         {
-            Path directory = Paths.get("scores");
+            final Path directoryPath = Paths.get(SCORES_DIRECTORY_NAME);
 
-            if (Files.notExists(directory))
+            if (Files.notExists(directoryPath))
             {
-                Files.createDirectories(directory);
+                Files.createDirectories(directoryPath);
             }
 
-            Path filePath = directory.resolve("scores.txt");
+            final Path filePath = directoryPath.resolve(SCORES_FILE_NAME);
 
             if (Files.notExists(filePath))
             {
                 Files.createFile(filePath);
             }
 
-            StringBuilder entry = new StringBuilder();
+            final StringBuilder entryBuilder = new StringBuilder();
 
-            entry.append("Date and Time: ").append(formattedDateTimePlayed).append("\n")
-                 .append("Games played: ").append(numGamesPlayed).append("\n")
-                 .append("Correct First Attempts: ").append(numCorrectFirstAttempt).append("\n")
-                 .append("Correct second attempts: ").append(numCorrectSecondAttempt).append("\n")
-                 .append("Incorrect attempts: ").append(numIncorrectTwoAttempts).append("\n")
-                 .append("Total score: ").append(totalScore).append("\n\n");
+            entryBuilder.append(PREFIX_DATE_TIME).append(formattedDateTimePlayed).append("\n")
+                        .append(PREFIX_GAMES_PLAYED).append(numGamesPlayed).append("\n")
+                        .append(PREFIX_CORRECT_FIRST).append(numCorrectFirstAttempt).append("\n")
+                        .append(PREFIX_CORRECT_SECOND).append(numCorrectSecondAttempt).append("\n")
+                        .append(PREFIX_INCORRECT).append(numIncorrectTwoAttempts).append("\n")
+                        .append(PREFIX_TOTAL_SCORE).append(totalScore).append("\n\n");
 
-            Files.write(filePath, entry.toString().getBytes(), StandardOpenOption.APPEND);
+            Files.write(filePath,
+                        entryBuilder.toString().getBytes(),
+                        StandardOpenOption.APPEND);
         }
-        catch (IOException e)
+        catch (final IOException ioException)
         {
-            e.printStackTrace();
+            ioException.printStackTrace();
         }
     }
 
@@ -139,20 +194,20 @@ public class Score
     {
         try (FileWriter fileWriter = new FileWriter(scoreFileName, true))
         {
-            String line = String.format("%s,%d,%d,%d,%d%n",
-                                        score.formattedDateTimePlayed,
-                                        score.numGamesPlayed,
-                                        score.numCorrectFirstAttempt,
-                                        score.numCorrectSecondAttempt,
-                                        score.numIncorrectTwoAttempts);
+            final String line = String.format("%s,%d,%d,%d,%d%n",
+                                              score.formattedDateTimePlayed,
+                                              score.numGamesPlayed,
+                                              score.numCorrectFirstAttempt,
+                                              score.numCorrectSecondAttempt,
+                                              score.numIncorrectTwoAttempts);
             fileWriter.write(line);
         }
     }
 
     public static List<Score> readScoresFromFile(final String scoreFileName) throws IOException
     {
-        List<Score> scores = new ArrayList<>();
-        Path path = Paths.get(scoreFileName);
+        final List<Score> scores = new ArrayList<>();
+        final Path path = Paths.get(scoreFileName);
 
         if (Files.notExists(path))
         {
@@ -170,21 +225,35 @@ public class Score
                     continue;
                 }
 
-                String[] parts = line.split(",");
+                final String[] parts = line.split(",");
 
-                if (parts.length < 5)
+                if (parts.length < MINIMUM_FIELDS_REQUIRED_CSV)
                 {
                     continue;
                 }
 
-                LocalDateTime dateTime = LocalDateTime.parse(parts[0],
-                                                             DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"));
-                int gamesPlayed = Integer.parseInt(parts[1]);
-                int correctFirst = Integer.parseInt(parts[2]);
-                int correctSecond = Integer.parseInt(parts[3]);
-                int incorrect = Integer.parseInt(parts[4]);
+                final LocalDateTime dateTime =
+                    LocalDateTime.parse(parts[CSV_INDEX_DATE_TIME], DATE_TIME_FORMATTER);
 
-                Score score = new Score(dateTime, gamesPlayed, correctFirst, correctSecond, incorrect);
+                final int gamesPlayed =
+                    Integer.parseInt(parts[CSV_INDEX_GAMES_PLAYED]);
+
+                final int correctFirst =
+                    Integer.parseInt(parts[CSV_INDEX_CORRECT_FIRST]);
+
+                final int correctSecond =
+                    Integer.parseInt(parts[CSV_INDEX_CORRECT_SECOND]);
+
+                final int incorrect =
+                    Integer.parseInt(parts[CSV_INDEX_INCORRECT]);
+
+
+                final Score score = new Score(dateTime,
+                                              gamesPlayed,
+                                              correctFirst,
+                                              correctSecond,
+                                              incorrect);
+
                 scores.add(score);
             }
         }
@@ -194,51 +263,53 @@ public class Score
 
     public static HighScoreData getHighScoreData() throws IOException
     {
-        Path directory = Paths.get("scores");
-        Path file = directory.resolve("scores.txt");
+        final Path directoryPath = Paths.get(SCORES_DIRECTORY_NAME);
+        final Path filePath = directoryPath.resolve(SCORES_FILE_NAME);
 
-        if (Files.notExists(file))
+        if (Files.notExists(filePath))
         {
             throw new FileNotFoundException("File does not exist. Please play a game first");
         }
 
-        float highestScore = -1;
+        float highestScore = DEFAULT_HIGHSCORE_INITIAL_VALUE;
         String timeOfHighScore = null;
+
+        float currentScore = ZERO_INT;
+        float currentGamesPlayed = ZERO_INT;
         String currentTime = null;
 
-        float currentScore = 0;
-        float currentGamesPlayed = 0;
-
-        try (BufferedReader reader = Files.newBufferedReader(file))
+        try (BufferedReader reader = Files.newBufferedReader(filePath))
         {
             String line;
 
             while ((line = reader.readLine()) != null)
             {
-                String trimmedLine = line.trim();
+                final String trimmedLine = line.trim();
 
-                if (trimmedLine.startsWith("Date and Time: "))
+                if (trimmedLine.startsWith(PREFIX_DATE_TIME))
                 {
-                    currentTime = trimmedLine.substring("Date and Time: ".length()).trim();
+                    currentTime = trimmedLine.substring(PREFIX_DATE_TIME.length()).trim();
                 }
-                else if (trimmedLine.startsWith("Games played: "))
+                else if (trimmedLine.startsWith(PREFIX_GAMES_PLAYED))
                 {
-                    String value = trimmedLine.substring("Games played: ".length()).trim();
+                    final String value =
+                        trimmedLine.substring(PREFIX_GAMES_PLAYED.length()).trim();
                     currentGamesPlayed = Integer.parseInt(value);
                 }
-                else if (trimmedLine.startsWith("Total score: "))
+                else if (trimmedLine.startsWith(PREFIX_TOTAL_SCORE))
                 {
-                    String value = trimmedLine.substring("Total score: ".length()).trim();
+                    final String value =
+                        trimmedLine.substring(PREFIX_TOTAL_SCORE.length()).trim();
                     currentScore = Integer.parseInt(value);
                 }
 
-                if (currentGamesPlayed > 0)
+                if (currentGamesPlayed > ZERO_INT)
                 {
                     if (currentScore > highestScore)
                     {
-                        if (highestScore == -1)
+                        if (highestScore == DEFAULT_HIGHSCORE_INITIAL_VALUE)
                         {
-                            highestScore = 0;
+                            highestScore = ZERO_INT;
                         }
                         else
                         {
@@ -247,16 +318,13 @@ public class Score
 
                         timeOfHighScore = currentTime;
                     }
-
                 }
-
             }
         }
-        catch (final IOException e)
+        catch (final IOException ioException)
         {
-            e.printStackTrace();
+            ioException.printStackTrace();
         }
-
 
         return new HighScoreData(timeOfHighScore, highestScore);
     }
@@ -265,12 +333,13 @@ public class Score
     public String toString()
     {
         return String.format(
-            "Date and Time: %s\n" +
+            "%s%s\n" +
             "Games Played: %d\n" +
             "Correct First Attempts: %d\n" +
             "Correct Second Attempts: %d\n" +
             "Incorrect Attempts: %d\n" +
             "Score: %d points\n",
+            PREFIX_DATE_TIME,
             formattedDateTimePlayed,
             numGamesPlayed,
             numCorrectFirstAttempt,
@@ -279,5 +348,5 @@ public class Score
             totalScore
                             );
     }
-}
 
+}

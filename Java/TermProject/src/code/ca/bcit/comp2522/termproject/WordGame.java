@@ -6,23 +6,25 @@ import java.time.LocalDateTime;
 import java.util.Random;
 import java.util.Scanner;
 
-enum questionType
-{CAPITAL, COUNTRY, FACT};
+enum QuestionType
+{
+    CAPITAL, COUNTRY, FACT
+}
 
 interface Question
 {
     String getPrompt();
 
-    boolean checkAnswer(String userAnswer);
+    boolean checkAnswer(final String userAnswer);
 
     String getAnswer();
 }
 
 class AccentRemover
 {
-    public static String removeAccents(final String str)
+    public static String removeAccents(final String originalString)
     {
-        String normalizedString = Normalizer.normalize(str, Normalizer.Form.NFKD);
+        final String normalizedString = Normalizer.normalize(originalString, Normalizer.Form.NFKD);
         return normalizedString.replaceAll("\\p{InCombiningDiacriticalMarks}+", "");
     }
 }
@@ -34,9 +36,8 @@ abstract class AbstractCountryQuestion implements Question
 
     protected AbstractCountryQuestion(final Country country)
     {
-        this.country = country;
-
-        this.normalizedCountryName = AccentRemover.removeAccents(country.getCountryName());
+        this.country          = country;
+        normalizedCountryName = AccentRemover.removeAccents(country.getCountryName());
     }
 
     protected String normalize(final String word)
@@ -51,54 +52,82 @@ abstract class AbstractCountryQuestion implements Question
     }
 }
 
+/**
+ * Handles the console-based word game loop that quizzes the player about
+ * countries, capitals, and facts.
+ */
 public class WordGame
 {
-    private final World           world                = new World();
-    private final QuestionFactory questionFactory      = new QuestionFactory(world);
-    private       int             firstCorrectGuesses  = 0;
-    private       int             secondCorrectGuesses = 0;
-    private       int             incorrectGuesses     = 0;
-    private       int             gamesPlayed          = 0;
-    private       boolean         playAgain            = true;
+    // -------------------- Game Constants (no magic numbers) --------------------
+
+    private static final int FIRST_QUESTION_NUMBER     = 1;
+    private static final int TOTAL_QUESTIONS_PER_ROUND = 3;
+
+    private static final int INITIAL_GUESS_COUNT             = 0;
+    private static final int MAXIMUM_GUESS_COUNT_EXCLUSIVE   = 2;
+    private static final int FIRST_ATTEMPT_GUESS_COUNT_VALUE = 1;
+
+    // -------------------- Game State --------------------
+
+    private final World           world;
+    private final QuestionFactory questionFactory;
+
+    private int     firstCorrectGuesses;
+    private int     secondCorrectGuesses;
+    private int     incorrectGuesses;
+    private int     gamesPlayed;
+    private boolean playAgain = true;
 
     private final Scanner input;
 
+    /**
+     * Constructs a new WordGame that reads all user input from the provided scanner.
+     *
+     * @param input scanner used to read player responses from the console
+     */
     public WordGame(final Scanner input)
     {
-        this.input = input;
+        this.input      = input;
+        world           = new World();
+        questionFactory = new QuestionFactory(world);
     }
 
+    /**
+     * Runs the main gameplay loop for the word game.
+     * Continues until the user decides not to play again.
+     */
     public void playWordGame()
     {
         while (playAgain)
         {
             gamesPlayed++;
 
-            for (int i = 1; i <= 3; i++)
+            for (int questionNumber = FIRST_QUESTION_NUMBER;
+                 questionNumber <= TOTAL_QUESTIONS_PER_ROUND;
+                 questionNumber++)
             {
-
-                int guessCount = 0;
+                int guessCount = INITIAL_GUESS_COUNT;
                 boolean correct = false;
                 final Question question = questionFactory.generateRandomQuestion();
 
-                while (guessCount < 2 && !correct)
+                while (guessCount < MAXIMUM_GUESS_COUNT_EXCLUSIVE && !correct)
                 {
-                    if (guessCount == 0)
+                    if (guessCount == INITIAL_GUESS_COUNT)
                     {
-                        System.out.println("Question " + i + ": " + question.getPrompt());
+                        System.out.println("Question " + questionNumber + ": " + question.getPrompt());
                     }
 
                     final String userInput = input.nextLine().trim().toLowerCase();
                     System.out.println(userInput);
-                    correct = question.checkAnswer(userInput);
 
+                    correct = question.checkAnswer(userInput);
                     guessCount++;
 
                     if (correct)
                     {
                         System.out.println("CORRECT!\n");
 
-                        if (guessCount == 1)
+                        if (guessCount == FIRST_ATTEMPT_GUESS_COUNT_VALUE)
                         {
                             firstCorrectGuesses++;
                         }
@@ -107,7 +136,7 @@ public class WordGame
                             secondCorrectGuesses++;
                         }
                     }
-                    else if (guessCount < 2)
+                    else if (guessCount < MAXIMUM_GUESS_COUNT_EXCLUSIVE)
                     {
                         System.out.print("INCORRECT!\n");
                     }
@@ -116,15 +145,14 @@ public class WordGame
                         System.out.println("The correct answer was " + question.getAnswer());
                         incorrectGuesses++;
                     }
-
                 }
-
             }
 
-            String summary = gamesPlayed + " word games played\n" +
-                             firstCorrectGuesses + " correct answers on first attempt\n" +
-                             secondCorrectGuesses + " correct answers on second attempt\n" +
-                             incorrectGuesses + " incorrect answers on the two attempts each";
+            final String summary =
+                gamesPlayed + " word games played\n"
+                + firstCorrectGuesses + " correct answers on first attempt\n"
+                + secondCorrectGuesses + " correct answers on second attempt\n"
+                + incorrectGuesses + " incorrect answers on the two attempts each";
             System.out.println(summary);
 
             String playerAnswer;
@@ -159,40 +187,41 @@ public class WordGame
                             final float highScore = Score.getHighScore();
                             final String highScoreTime = Score.getHighScoreTime();
                             final String highScoreDate = Score.getHighScoreDate();
-                            
+
                             newScore.appendScoreToFile();
 
                             if (scoreAvgCurRound > highScore)
                             {
-                                System.out.println("CONGRATULATIONS! You are the new high score with an average of " +
-                                                   scoreAvgCurRound + " points per game; the previous record was " +
-                                                   highScore + " points per game on " + highScoreDate + " at "
-                                                   + highScoreTime);
+                                System.out.println(
+                                    "CONGRATULATIONS! You are the new high score with an average of "
+                                    + scoreAvgCurRound + " points per game; the previous record was "
+                                    + highScore + " points per game on " + highScoreDate + " at "
+                                    + highScoreTime
+                                                  );
                             }
                             else
                             {
-                                System.out.println("You did not beat the high score of " + highScore + " points per " +
-                                                   "game from " +
-                                                   highScoreDate + " at " + highScoreTime);
+                                System.out.println(
+                                    "You did not beat the high score of " + highScore + " points per game from "
+                                    + highScoreDate + " at " + highScoreTime
+                                                  );
                             }
                         }
-                        catch (IOException e)
+                        catch (final IOException exception)
                         {
-                            throw new RuntimeException(e);
+                            throw new RuntimeException(exception);
                         }
 
                         break;
-
                     }
 
                     throw new IllegalArgumentException("Please enter either \"Yes\" or \"No\"");
                 }
-                catch (IllegalArgumentException e)
+                catch (final IllegalArgumentException exception)
                 {
-                    System.out.println(e.getMessage());
+                    System.out.println(exception.getMessage());
                 }
             }
-
         }
     }
 }
@@ -204,10 +233,8 @@ class CapitalQuestion extends AbstractCountryQuestion
     public CapitalQuestion(final Country country)
     {
         super(country);
-
-        this.normalizedCapitalName = normalize(country.getCapitalCityName());
+        normalizedCapitalName = normalize(country.getCapitalCityName());
     }
-
 
     @Override
     public String getPrompt()
@@ -216,7 +243,7 @@ class CapitalQuestion extends AbstractCountryQuestion
     }
 
     @Override
-    public boolean checkAnswer(String userAnswer)
+    public boolean checkAnswer(final String userAnswer)
     {
         return normalize(userAnswer).equals(normalizedCapitalName);
     }
@@ -230,13 +257,12 @@ class CapitalQuestion extends AbstractCountryQuestion
 
 class CountryQuestion extends AbstractCountryQuestion
 {
-    private final String normalizedCountryName;
+    private final String normalizedCountryNameLocal;
 
     public CountryQuestion(final Country country)
     {
         super(country);
-
-        this.normalizedCountryName = normalize(country.getCountryName());
+        normalizedCountryNameLocal = normalize(country.getCountryName());
     }
 
     @Override
@@ -246,9 +272,9 @@ class CountryQuestion extends AbstractCountryQuestion
     }
 
     @Override
-    public boolean checkAnswer(String userAnswer)
+    public boolean checkAnswer(final String userAnswer)
     {
-        return normalize(userAnswer).equals(normalizedCountryName);
+        return normalize(userAnswer).equals(normalizedCountryNameLocal);
     }
 }
 
@@ -259,8 +285,7 @@ class FactQuestion extends AbstractCountryQuestion
     public FactQuestion(final Country country)
     {
         super(country);
-
-        this.randomFact = country.getRandomFactAtIndex();
+        randomFact = country.getRandomFactAtIndex();
     }
 
     @Override
@@ -270,7 +295,7 @@ class FactQuestion extends AbstractCountryQuestion
     }
 
     @Override
-    public boolean checkAnswer(String userAnswer)
+    public boolean checkAnswer(final String userAnswer)
     {
         return normalize(userAnswer).equals(normalizedCountryName);
     }
@@ -278,19 +303,20 @@ class FactQuestion extends AbstractCountryQuestion
 
 class QuestionFactory
 {
-    final World  world;
-    final Random random;
+    private final World  world;
+    private final Random random;
 
     public QuestionFactory(final World world)
     {
-        this.world  = world;
-        this.random = new Random();
+        this.world = world;
+        random     = new Random();
     }
 
-    final Question generateRandomQuestion()
+    Question generateRandomQuestion()
     {
         final Country randomCountry = world.getRandomCountry();
-        questionType type = questionType.values()[random.nextInt(questionType.values().length)];
+        final QuestionType type =
+            QuestionType.values()[random.nextInt(QuestionType.values().length)];
 
         return switch (type)
         {
@@ -300,5 +326,3 @@ class QuestionFactory
         };
     }
 }
-
-
