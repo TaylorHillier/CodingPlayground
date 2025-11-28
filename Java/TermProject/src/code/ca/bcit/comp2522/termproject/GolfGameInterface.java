@@ -14,70 +14,67 @@ import javafx.scene.layout.HBox;
 import javafx.scene.paint.Color;
 import javafx.stage.Stage;
 
-import java.io.IOException;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.util.ArrayList;
 import java.util.EnumMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Random;
 import java.util.concurrent.CountDownLatch;
-import java.util.stream.Collectors;
 
 /**
- * Simple left-to-right golf game using JavaFX.
- * Demonstrates: inheritance, interfaces, abstract classes, collections,
- * generics, lambdas, method references, random, file I/O, streams, GUI, etc.
+ * JavaFX-based left-to-right golf game.
+ * Orchestrates UI, rendering, course, physics, and scoring.
+ *
+ * @author Taylor
+ * @version 1.0
  */
 public final class GolfGameInterface
 {
-    private static final double CANVAS_WIDTH  = 800.0;
-    private static final double CANVAS_HEIGHT = 400.0;
+    private static final double CANVAS_WIDTH_PIXELS  = 800.0;
+    private static final double CANVAS_HEIGHT_PIXELS = 400.0;
 
-    private static final double BALL_RADIUS = 6.0;
+    private static final double BALL_RADIUS_PIXELS = 6.0;
 
-    private static final double TILE_WIDTH = 40.0;
+    private static final double CAMERA_CENTER_THRESHOLD_RATIO = 0.4;
 
-    private static final double BASE_GROUND_Y = CANVAS_HEIGHT * 0.75;
+    private static final int    NUMBER_OF_TILES_PER_HOLE   = 30;
+    private static final double TILE_WIDTH_PIXELS          = 40.0;
+    private static final double BASE_GROUND_CENTER_YPixels =
+        CANVAS_HEIGHT_PIXELS * 0.75;
 
     private static final double SAND_DISTANCE_MULTIPLIER    = 0.40; // 60% less far
     private static final double ROUGH_DISTANCE_MULTIPLIER   = 0.70;
     private static final double FAIRWAY_DISTANCE_MULTIPLIER = 1.00;
 
-    private static final double GRAVITY_ACCELERATION_PIXELS_PER_SECOND = 420.0;
+    private static final double MINIMUM_LAUNCH_ANGLE_DEGREES = 15.0;
+    private static final double MAXIMUM_LAUNCH_ANGLE_DEGREES = 70.0;
+    private static final double DEFAULT_LAUNCH_ANGLE_DEGREES = 45.0;
 
-    // Used to make the arc rise a bit smoother and drop a bit sharper.
-    private static final double GRAVITY_MULTIPLIER_ON_ASCENT  = 0.8;
-    private static final double GRAVITY_MULTIPLIER_ON_DESCENT = 1.2;
+    private static final double MINIMUM_POWER_PERCENTAGE = 10.0;
+    private static final double MAXIMUM_POWER_PERCENTAGE = 100.0;
+    private static final double DEFAULT_POWER_PERCENTAGE = 60.0;
 
-    private static final double LANDING_BOUNCE_THRESHOLD_VELOCITY = 80.0;
-    private static final double ROLL_FRICTION_FACTOR_FAIRWAY      = 0.96;
-    private static final double ROLL_FRICTION_FACTOR_ROUGH        = 0.90;
-    private static final double ROLL_FRICTION_FACTOR_SAND         = 0.80;
-    private static final double ROLL_FRICTION_FACTOR_DEFAULT      = 0.92;
-
-
-    private static final Path HIGH_SCORE_FILE_PATH =
-        Path.of(System.getProperty("user.home"), "golf_best_score.txt");
+    private static final double AIM_ARROW_BASE_LENGTH_PIXELS  = 80.0;
+    private static final double AIM_ARROW_EXTRA_LENGTH_PIXELS = 80.0;
+    private static final double AIM_ARROW_HEAD_LENGTH_PIXELS  = 12.0;
+    private static final double AIM_ARROW_HEAD_ANGLE_DEGREES  = 160.0;
 
     private final CountDownLatch gameFinishedLatch;
+
+    private final Random                  randomNumberGenerator;
+    private final Map<ClubType, GolfClub> golfClubsByType;
 
     private Stage           gameStage;
     private Canvas          gameCanvas;
     private GraphicsContext graphicsContext;
 
-    private final List<TerrainTile> terrainTiles;
-    private final Random            randomNumberGenerator;
+    private GolfCourse golfCourse;
+    private GolfBall   golfBall;
 
-    private final Map<ClubType, GolfClub> golfClubsByType;
-
-    private BallState ballState;
-    private double    cameraOffsetX;
+    private double cameraOffsetXPixels;
 
     private int     strokesTakenCount;
-    private int     parForHole;
     private Integer bestScoreFromFile;
+    private int     parForHole;
 
     private AnimationTimer animationTimer;
 
@@ -88,31 +85,35 @@ public final class GolfGameInterface
     private Label              statusLabel;
     private Label              parAndScoreLabel;
 
-
     /**
-     * Constructor. Initializes the golf game.
+     * Constructs the GolfGameInterface, initializing clubs, course, ball, and score.
      *
-     * @param gameFinishedLatch latch to signal when the window is closed
+     * @param gameFinishedLatch latch that is counted down when the window closes
      */
     public GolfGameInterface(final CountDownLatch gameFinishedLatch)
     {
-        this.gameFinishedLatch     = gameFinishedLatch;
-        this.randomNumberGenerator = new Random();
-        this.terrainTiles          = new ArrayList<>();
-        this.golfClubsByType       = new EnumMap<>(ClubType.class);
+        this.gameFinishedLatch = gameFinishedLatch;
+        randomNumberGenerator  = new Random();
+        golfClubsByType        = new EnumMap<>(ClubType.class);
+        cameraOffsetXPixels    = 0.0;
+        strokesTakenCount      = 0;
+        bestScoreFromFile      = null;
+        parForHole             = 0;
 
         initializeClubs();
-        generateSingleHoleCourse();
-        initializeBallState();
+        generateNewHole();
         loadBestScoreFromFile();
     }
 
+    /**
+     * Opens the golf game in a new JavaFX Stage.
+     */
     public void openInNewStage()
     {
         gameStage = new Stage();
         gameStage.setTitle("Simple Golf Game");
 
-        gameCanvas      = new Canvas(CANVAS_WIDTH, CANVAS_HEIGHT);
+        gameCanvas      = new Canvas(CANVAS_WIDTH_PIXELS, CANVAS_HEIGHT_PIXELS);
         graphicsContext = gameCanvas.getGraphicsContext2D();
 
         final BorderPane rootPane = new BorderPane();
@@ -136,11 +137,10 @@ public final class GolfGameInterface
         gameStage.show();
     }
 
-    // -------------------- Setup helpers --------------------
+    // -------------------- Initialization --------------------
 
     private void initializeClubs()
     {
-        // Strategy pattern: each club has its own distance profile.
         golfClubsByType.put(ClubType.DRIVER,
                             new DriverGolfClub("Driver", 260.0));
         golfClubsByType.put(ClubType.WEDGE,
@@ -149,77 +149,34 @@ public final class GolfGameInterface
                             new PutterGolfClub("Putter", 60.0));
     }
 
-    private void generateSingleHoleCourse()
+    private void generateNewHole()
     {
-        terrainTiles.clear();
+        golfCourse = CourseGenerator.generateSingleHole(
+            randomNumberGenerator,
+            NUMBER_OF_TILES_PER_HOLE,
+            TILE_WIDTH_PIXELS,
+            BASE_GROUND_CENTER_YPixels
+                                                       );
 
-        final int numberOfTiles = 30;
-        double currentX = 0.0;
-        double currentHeightOffset = 0.0;
-
-        // Basic random terrain: fairway with some sand/water sprinkled in.
-        for (int tileIndex = 0; tileIndex < numberOfTiles; tileIndex++)
-        {
-            final TerrainType terrainType;
-
-            if (tileIndex == numberOfTiles - 1)
-            {
-                terrainType = TerrainType.HOLE;
-            }
-            else
-            {
-                final int randomValue = randomNumberGenerator.nextInt(100);
-
-                if (randomValue < 10)
-                {
-                    terrainType = TerrainType.WATER;
-                }
-                else if (randomValue < 25)
-                {
-                    terrainType = TerrainType.SAND;
-                }
-                else if (randomValue < 35)
-                {
-                    terrainType = TerrainType.ROUGH;
-                }
-                else
-                {
-                    terrainType = TerrainType.FAIRWAY;
-                }
-            }
-
-            // Gentle height changes.
-            final double randomHeightChange =
-                (randomNumberGenerator.nextDouble() - 0.5) * 10.0;
-            currentHeightOffset += randomHeightChange;
-            currentHeightOffset = clamp(currentHeightOffset, -40.0, 40.0);
-
-            final double groundY = BASE_GROUND_Y + currentHeightOffset;
-
-            final TerrainTile terrainTile =
-                new TerrainTile(currentX, currentX + TILE_WIDTH, groundY, terrainType);
-
-            terrainTiles.add(terrainTile);
-            currentX += TILE_WIDTH;
-        }
-
-        // Simple par estimator: 1 stroke per ~ 200 pixels of length.
-        final double holeLength = terrainTiles.get(terrainTiles.size() - 1).endX;
-        parForHole = (int) Math.max(3, Math.round(holeLength / 200.0));
+        parForHole = golfCourse.getParStrokes();
+        initializeBallAtTee();
     }
 
-    private void initializeBallState()
+    private void initializeBallAtTee()
     {
-        final TerrainTile startTile = terrainTiles.getFirst();
+        final TerrainTile startTerrainTile = golfCourse.getStartTile();
 
-        final double ballStartX = startTile.startX + TILE_WIDTH * 0.25;
-        final double ballStartY = startTile.groundY - BALL_RADIUS;
+        final double ballStartXPixels =
+            startTerrainTile.getStartXPixels() + TILE_WIDTH_PIXELS * 0.25;
+        final double ballStartYPixels =
+            startTerrainTile.getGroundCenterYPixels() - BALL_RADIUS_PIXELS;
 
-        ballState         = new BallState(ballStartX, ballStartY);
-        cameraOffsetX     = 0.0;
-        strokesTakenCount = 0;
+        golfBall = new GolfBall(ballStartXPixels, ballStartYPixels, BALL_RADIUS_PIXELS);
+
+        cameraOffsetXPixels = 0.0;
+        strokesTakenCount   = 0;
+        updateParAndScoreLabel();
     }
-
 
     private HBox createControlPanel()
     {
@@ -230,17 +187,27 @@ public final class GolfGameInterface
         clubSelectionComboBox.getItems().addAll(ClubType.values());
         clubSelectionComboBox.getSelectionModel().select(ClubType.DRIVER);
 
-        shotPowerSlider = new Slider(10.0, 100.0, 60.0);
+        shotPowerSlider = new Slider(
+            MINIMUM_POWER_PERCENTAGE,
+            MAXIMUM_POWER_PERCENTAGE,
+            DEFAULT_POWER_PERCENTAGE
+        );
         shotPowerSlider.setShowTickMarks(true);
         shotPowerSlider.setShowTickLabels(true);
 
-        // New: launch angle slider (degrees)
-        launchAngleSlider = new Slider(15.0, 70.0, 45.0);
+        launchAngleSlider = new Slider(
+            MINIMUM_LAUNCH_ANGLE_DEGREES,
+            MAXIMUM_LAUNCH_ANGLE_DEGREES,
+            DEFAULT_LAUNCH_ANGLE_DEGREES
+        );
         launchAngleSlider.setShowTickMarks(true);
         launchAngleSlider.setShowTickLabels(true);
 
         final Button hitBallButton = new Button("Hit");
         hitBallButton.setOnAction(actionEvent -> performShot());
+
+        final Button newHoleButton = new Button("New Hole");
+        newHoleButton.setOnAction(actionEvent -> generateNewHole());
 
         statusLabel      = new Label("Pick a club, angle, power, then hit.");
         parAndScoreLabel = new Label(buildParAndScoreText());
@@ -250,13 +217,13 @@ public final class GolfGameInterface
             new Label("Angle:"), launchAngleSlider,
             new Label("Power:"), shotPowerSlider,
             hitBallButton,
+            newHoleButton,
             parAndScoreLabel,
             statusLabel
                                          );
 
         return controlPanel;
     }
-
 
     private void setupAnimationLoop()
     {
@@ -289,7 +256,7 @@ public final class GolfGameInterface
 
     private void performShot()
     {
-        if (ballState.isMoving)
+        if (golfBall.isMoving())
         {
             return;
         }
@@ -306,8 +273,10 @@ public final class GolfGameInterface
         final GolfClub selectedGolfClub = golfClubsByType.get(selectedClubType);
         final double powerPercentage = shotPowerSlider.getValue();
 
-        final TerrainTile currentTile = findTileAtX(ballState.positionX);
-        final double terrainDistanceMultiplier = switch (currentTile.terrainType)
+        final TerrainTile currentTerrainTile =
+            golfCourse.getTileAtX(golfBall.getPositionXPixels());
+
+        final double terrainDistanceMultiplier = switch (currentTerrainTile.getTerrainType())
         {
             case SAND -> SAND_DISTANCE_MULTIPLIER;
             case ROUGH -> ROUGH_DISTANCE_MULTIPLIER;
@@ -317,8 +286,7 @@ public final class GolfGameInterface
 
         if (terrainDistanceMultiplier == 0.0)
         {
-            // Ball is in water: reset to start of hole.
-            initializeBallState();
+            initializeBallAtTee();
             statusLabel.setText("Splash! Ball reset to the tee.");
             return;
         }
@@ -328,36 +296,27 @@ public final class GolfGameInterface
 
         final ShotResult shotResult = selectedGolfClub.computeShot(shotContext);
 
-        // We now interpret the shotResult.totalHorizontalDistance as the
-        // ideal range on flat ground, and compute a launch velocity from it.
-
         final double launchAngleDegrees = launchAngleSlider.getValue();
-        final double launchAngleRadians = Math.toRadians(launchAngleDegrees);
+        final double initialSpeedPixelsPerSecond =
+            ProjectilePhysics.computeInitialSpeed(
+                shotResult.getExpectedHorizontalRangePixels(),
+                launchAngleDegrees
+                                                 );
 
-        final double sinDoubleAngle = Math.sin(2.0 * launchAngleRadians);
-        if (sinDoubleAngle <= 0.0)
+        if (initialSpeedPixelsPerSecond <= 0.0)
         {
             statusLabel.setText("Invalid angle for a forward shot.");
             return;
         }
 
-        final double idealRangePixels = shotResult.totalHorizontalDistance;
+        final double launchAngleRadians = Math.toRadians(launchAngleDegrees);
 
-        // Classic projectile formula: range = v^2 * sin(2θ) / g  -> v = sqrt(range * g / sin(2θ))
-        final double approximateGravityForRange =
-            GRAVITY_ACCELERATION_PIXELS_PER_SECOND;
-        final double initialSpeedPixelsPerSecond =
-            Math.sqrt(idealRangePixels * approximateGravityForRange / sinDoubleAngle);
-
-        final double initialVelocityX =
+        final double initialVelocityXPixelsPerSecond =
             initialSpeedPixelsPerSecond * Math.cos(launchAngleRadians);
-        final double initialVelocityY =
-            -initialSpeedPixelsPerSecond * Math.sin(launchAngleRadians); // negative = up on screen
+        final double initialVelocityYPixelsPerSecond =
+            -initialSpeedPixelsPerSecond * Math.sin(launchAngleRadians);
 
-        ballState.velocityX         = initialVelocityX;
-        ballState.velocityY         = initialVelocityY;
-        ballState.isMoving          = true;
-        ballState.distanceRemaining = idealRangePixels; // optional diagnostic
+        golfBall.launch(initialVelocityXPixelsPerSecond, initialVelocityYPixelsPerSecond);
 
         strokesTakenCount++;
 
@@ -366,109 +325,79 @@ public final class GolfGameInterface
             + " at " + Math.round(launchAngleDegrees) + "°"
             + " power " + Math.round(powerPercentage) + "%"
                            );
-        parAndScoreLabel.setText(buildParAndScoreText());
+        updateParAndScoreLabel();
     }
-
 
     private void updateGameState(final double deltaTimeSeconds)
     {
-        if (ballState.isMoving)
+        if (golfBall.isMoving())
         {
-            // Decide whether we are rising or falling to tweak gravity visually.
-            final double gravityMultiplier =
-                (ballState.velocityY < 0.0)
-                    ? GRAVITY_MULTIPLIER_ON_ASCENT
-                    : GRAVITY_MULTIPLIER_ON_DESCENT;
+            final TerrainTile currentTerrainTile =
+                golfCourse.getTileAtX(golfBall.getPositionXPixels());
 
-            final double effectiveGravity =
-                GRAVITY_ACCELERATION_PIXELS_PER_SECOND * gravityMultiplier;
+            final double groundCenterYPixels =
+                currentTerrainTile.getGroundCenterYPixels() - golfBall.getRadiusPixels();
 
-            // Apply vertical acceleration.
-            ballState.velocityY += effectiveGravity * deltaTimeSeconds;
+            final boolean stillMoving =
+                ProjectilePhysics.updateBallWithTerrain(
+                    golfBall,
+                    currentTerrainTile,
+                    groundCenterYPixels,
+                    deltaTimeSeconds
+                                                       );
 
-            // Move by velocities.
-            final double deltaX = ballState.velocityX * deltaTimeSeconds;
-            final double deltaY = ballState.velocityY * deltaTimeSeconds;
-
-            ballState.positionX += deltaX;
-            ballState.positionY += deltaY;
-
-            final TerrainTile currentTile = findTileAtX(ballState.positionX);
-            final double groundY = currentTile.groundY - BALL_RADIUS;
-
-            // Collision with ground (terrain surface)
-            if (ballState.positionY >= groundY)
+            if (!stillMoving)
             {
-                ballState.positionY = groundY;
-
-                // If we are still coming down fast, do a small bounce.
-                if (Math.abs(ballState.velocityY) > LANDING_BOUNCE_THRESHOLD_VELOCITY)
-                {
-                    ballState.velocityY = -ballState.velocityY * 0.35;
-                }
-                else
-                {
-                    // No more bounce; transition to rolling.
-                    ballState.velocityY = 0.0;
-
-                    final double rollFrictionFactor =
-                        switch (currentTile.terrainType)
-                        {
-                            case SAND -> ROLL_FRICTION_FACTOR_SAND;
-                            case ROUGH -> ROLL_FRICTION_FACTOR_ROUGH;
-                            case FAIRWAY, HOLE -> ROLL_FRICTION_FACTOR_FAIRWAY;
-                            default -> ROLL_FRICTION_FACTOR_DEFAULT;
-                        };
-
-                    ballState.velocityX *= rollFrictionFactor;
-
-                    if (Math.abs(ballState.velocityX) < 10.0)
-                    {
-                        ballState.velocityX = 0.0;
-                        ballState.isMoving  = false;
-                        handleBallStop(currentTile);
-                    }
-                }
+                handleBallStop(currentTerrainTile);
             }
         }
 
         updateCamera();
     }
 
-
-    private void handleBallStop(final TerrainTile currentTile)
+    private void handleBallStop(final TerrainTile currentTerrainTile)
     {
-        if (currentTile.terrainType == TerrainType.WATER)
+        final TerrainType terrainType = currentTerrainTile.getTerrainType();
+
+        if (terrainType == TerrainType.WATER)
         {
-            initializeBallState();
+            initializeBallAtTee();
             statusLabel.setText("Ball rolled into water. Reset to tee.");
         }
-        else if (currentTile.terrainType == TerrainType.HOLE)
+        else if (terrainType == TerrainType.HOLE)
         {
             statusLabel.setText("Ball in the hole! Strokes: " + strokesTakenCount);
             updateBestScoreIfNeeded();
         }
-        else if (currentTile.terrainType == TerrainType.SAND)
+        else if (terrainType == TerrainType.SAND)
         {
             statusLabel.setText("Stopped in sand. Next shot is heavily reduced.");
         }
         else
         {
-            statusLabel.setText("Ball stopped on " + currentTile.terrainType.name().toLowerCase() + ".");
+            statusLabel.setText(
+                "Ball stopped on " + terrainType.name().toLowerCase() + "."
+                               );
         }
     }
 
     private void updateCamera()
     {
-        final double centerThreshold = CANVAS_WIDTH * 0.4;
-        final double relativeBallX = ballState.positionX - cameraOffsetX;
+        final double centerThresholdXPixels =
+            CANVAS_WIDTH_PIXELS * CAMERA_CENTER_THRESHOLD_RATIO;
 
-        if (relativeBallX > centerThreshold)
+        final double relativeBallXPixels =
+            golfBall.getPositionXPixels() - cameraOffsetXPixels;
+
+        if (relativeBallXPixels > centerThresholdXPixels)
         {
-            cameraOffsetX = ballState.positionX - centerThreshold;
+            cameraOffsetXPixels = golfBall.getPositionXPixels() - centerThresholdXPixels;
         }
 
-        cameraOffsetX = Math.max(0.0, cameraOffsetX);
+        if (cameraOffsetXPixels < 0.0)
+        {
+            cameraOffsetXPixels = 0.0;
+        }
     }
 
     // -------------------- Rendering --------------------
@@ -476,75 +405,34 @@ public final class GolfGameInterface
     private void renderGame()
     {
         graphicsContext.setFill(Color.SKYBLUE);
-        graphicsContext.fillRect(0, 0, CANVAS_WIDTH, CANVAS_HEIGHT);
+        graphicsContext.fillRect(0.0, 0.0, CANVAS_WIDTH_PIXELS, CANVAS_HEIGHT_PIXELS);
 
-        // Draw tiles using method reference (week 7).
+        final List<TerrainTile> terrainTiles = golfCourse.getTerrainTiles();
         terrainTiles.forEach(this::drawTerrainTile);
 
         drawBall();
 
-        if (!ballState.isMoving)
+        if (!golfBall.isMoving())
         {
             drawAimArrow();
         }
-
     }
-
-    private void drawAimArrow()
-    {
-        final double baseArrowX = ballState.positionX - cameraOffsetX;
-        final double baseArrowY = ballState.positionY;
-
-        final double launchAngleDegrees = launchAngleSlider.getValue();
-        final double launchAngleRadians = Math.toRadians(launchAngleDegrees);
-
-        // Base length scaled by power for visual feedback
-        final double normalizedPower = shotPowerSlider.getValue() / 100.0;
-        final double arrowLengthPixels = 80.0 + 80.0 * normalizedPower;
-
-        final double arrowEndX =
-            baseArrowX + arrowLengthPixels * Math.cos(launchAngleRadians);
-        final double arrowEndY =
-            baseArrowY - arrowLengthPixels * Math.sin(launchAngleRadians);
-
-        graphicsContext.setStroke(Color.BLACK);
-        graphicsContext.setLineWidth(2.0);
-        graphicsContext.strokeLine(baseArrowX, baseArrowY, arrowEndX, arrowEndY);
-
-        // Arrow head
-        final double arrowHeadLengthPixels = 12.0;
-        final double arrowHeadAngleOffsetRadians = Math.toRadians(160.0);
-
-        final double leftHeadAngleRadians = launchAngleRadians + arrowHeadAngleOffsetRadians;
-        final double rightHeadAngleRadians = launchAngleRadians - arrowHeadAngleOffsetRadians;
-
-        final double leftHeadX =
-            arrowEndX + arrowHeadLengthPixels * Math.cos(leftHeadAngleRadians);
-        final double leftHeadY =
-            arrowEndY - arrowHeadLengthPixels * Math.sin(leftHeadAngleRadians);
-
-        final double rightHeadX =
-            arrowEndX + arrowHeadLengthPixels * Math.cos(rightHeadAngleRadians);
-        final double rightHeadY =
-            arrowEndY - arrowHeadLengthPixels * Math.sin(rightHeadAngleRadians);
-
-        graphicsContext.strokeLine(arrowEndX, arrowEndY, leftHeadX, leftHeadY);
-        graphicsContext.strokeLine(arrowEndX, arrowEndY, rightHeadX, rightHeadY);
-    }
-
 
     private void drawTerrainTile(final TerrainTile terrainTile)
     {
-        final double screenStartX = terrainTile.startX - cameraOffsetX;
-        final double screenEndX = terrainTile.endX - cameraOffsetX;
-        final double tileWidthOnScreen = screenEndX - screenStartX;
+        final double screenStartXPixels =
+            terrainTile.getStartXPixels() - cameraOffsetXPixels;
+        final double screenEndXPixels =
+            terrainTile.getEndXPixels() - cameraOffsetXPixels;
+        final double tileWidthOnScreenPixels =
+            screenEndXPixels - screenStartXPixels;
 
-        if (screenEndX < 0 || screenStartX > CANVAS_WIDTH)
+        if (screenEndXPixels < 0.0 || screenStartXPixels > CANVAS_WIDTH_PIXELS)
         {
             return;
         }
 
-        switch (terrainTile.terrainType)
+        switch (terrainTile.getTerrainType())
         {
             case FAIRWAY -> graphicsContext.setFill(Color.GREEN);
             case ROUGH -> graphicsContext.setFill(Color.DARKGREEN);
@@ -554,73 +442,114 @@ public final class GolfGameInterface
             default -> graphicsContext.setFill(Color.GRAY);
         }
 
+        final double groundCenterYPixels = terrainTile.getGroundCenterYPixels();
+
         graphicsContext.fillRect(
-            screenStartX,
-            terrainTile.groundY,
-            tileWidthOnScreen,
-            CANVAS_HEIGHT - terrainTile.groundY
+            screenStartXPixels,
+            groundCenterYPixels,
+            tileWidthOnScreenPixels,
+            CANVAS_HEIGHT_PIXELS - groundCenterYPixels
                                 );
 
-        if (terrainTile.terrainType == TerrainType.HOLE)
+        if (terrainTile.getTerrainType() == TerrainType.HOLE)
         {
-            final double flagPoleX = screenStartX + tileWidthOnScreen * 0.5;
-            final double flagTopY = terrainTile.groundY - 40.0;
-
-            graphicsContext.setStroke(Color.BLACK);
-            graphicsContext.strokeLine(flagPoleX, terrainTile.groundY, flagPoleX, flagTopY);
-
-            graphicsContext.setFill(Color.RED);
-            graphicsContext.fillPolygon(
-                new double[]{flagPoleX, flagPoleX + 18.0, flagPoleX},
-                new double[]{flagTopY, flagTopY + 8.0, flagTopY + 16.0},
-                3
-                                       );
+            drawFlag(screenStartXPixels, tileWidthOnScreenPixels, groundCenterYPixels);
         }
+    }
+
+    private void drawFlag(final double screenStartXPixels,
+                          final double tileWidthOnScreenPixels,
+                          final double groundCenterYPixels)
+    {
+        final double flagPoleXPixels = screenStartXPixels + tileWidthOnScreenPixels * 0.5;
+        final double flagTopYPixels = groundCenterYPixels - 40.0;
+
+        graphicsContext.setStroke(Color.BLACK);
+        graphicsContext.strokeLine(flagPoleXPixels, groundCenterYPixels,
+                                   flagPoleXPixels, flagTopYPixels);
+
+        graphicsContext.setFill(Color.RED);
+        graphicsContext.fillPolygon(
+            new double[]{flagPoleXPixels, flagPoleXPixels + 18.0, flagPoleXPixels},
+            new double[]{flagTopYPixels, flagTopYPixels + 8.0, flagTopYPixels + 16.0},
+            3
+                                   );
     }
 
     private void drawBall()
     {
-        final double screenBallX = ballState.positionX - cameraOffsetX;
+        final double screenBallXPixels =
+            golfBall.getPositionXPixels() - cameraOffsetXPixels;
 
         graphicsContext.setFill(Color.WHITE);
         graphicsContext.fillOval(
-            screenBallX - BALL_RADIUS,
-            ballState.positionY - BALL_RADIUS,
-            BALL_RADIUS * 2.0,
-            BALL_RADIUS * 2.0
+            screenBallXPixels - BALL_RADIUS_PIXELS,
+            golfBall.getPositionYPixels() - BALL_RADIUS_PIXELS,
+            BALL_RADIUS_PIXELS * 2.0,
+            BALL_RADIUS_PIXELS * 2.0
                                 );
+
         graphicsContext.setStroke(Color.BLACK);
         graphicsContext.strokeOval(
-            screenBallX - BALL_RADIUS,
-            ballState.positionY - BALL_RADIUS,
-            BALL_RADIUS * 2.0,
-            BALL_RADIUS * 2.0
+            screenBallXPixels - BALL_RADIUS_PIXELS,
+            golfBall.getPositionYPixels() - BALL_RADIUS_PIXELS,
+            BALL_RADIUS_PIXELS * 2.0,
+            BALL_RADIUS_PIXELS * 2.0
                                   );
     }
 
-    // -------------------- Helpers --------------------
-
-    private TerrainTile findTileAtX(final double worldX)
+    private void drawAimArrow()
     {
-        // Simple linear scan over a List (collections).
-        for (final TerrainTile terrainTile : terrainTiles)
-        {
-            if (worldX >= terrainTile.startX && worldX < terrainTile.endX)
-            {
-                return terrainTile;
-            }
-        }
+        final double baseArrowXPixels =
+            golfBall.getPositionXPixels() - cameraOffsetXPixels;
+        final double baseArrowYPixels =
+            golfBall.getPositionYPixels();
 
-        // Fallback to last tile.
-        return terrainTiles.getLast();
+        final double launchAngleDegrees = launchAngleSlider.getValue();
+        final double launchAngleRadians = Math.toRadians(launchAngleDegrees);
+
+        final double normalizedPower =
+            shotPowerSlider.getValue() / MAXIMUM_POWER_PERCENTAGE;
+
+        final double arrowLengthPixels =
+            AIM_ARROW_BASE_LENGTH_PIXELS
+            + AIM_ARROW_EXTRA_LENGTH_PIXELS * normalizedPower;
+
+        final double arrowEndXPixels =
+            baseArrowXPixels + arrowLengthPixels * Math.cos(launchAngleRadians);
+        final double arrowEndYPixels =
+            baseArrowYPixels - arrowLengthPixels * Math.sin(launchAngleRadians);
+
+        graphicsContext.setStroke(Color.BLACK);
+        graphicsContext.setLineWidth(2.0);
+        graphicsContext.strokeLine(
+            baseArrowXPixels, baseArrowYPixels,
+            arrowEndXPixels, arrowEndYPixels
+                                  );
+
+        final double arrowHeadAngleOffsetRadians =
+            Math.toRadians(AIM_ARROW_HEAD_ANGLE_DEGREES);
+
+        final double leftHeadAngleRadians = launchAngleRadians + arrowHeadAngleOffsetRadians;
+        final double rightHeadAngleRadians = launchAngleRadians - arrowHeadAngleOffsetRadians;
+
+        final double leftHeadXPixels =
+            arrowEndXPixels + AIM_ARROW_HEAD_LENGTH_PIXELS * Math.cos(leftHeadAngleRadians);
+        final double leftHeadYPixels =
+            arrowEndYPixels - AIM_ARROW_HEAD_LENGTH_PIXELS * Math.sin(leftHeadAngleRadians);
+
+        final double rightHeadXPixels =
+            arrowEndXPixels + AIM_ARROW_HEAD_LENGTH_PIXELS * Math.cos(rightHeadAngleRadians);
+        final double rightHeadYPixels =
+            arrowEndYPixels - AIM_ARROW_HEAD_LENGTH_PIXELS * Math.sin(rightHeadAngleRadians);
+
+        graphicsContext.strokeLine(arrowEndXPixels, arrowEndYPixels,
+                                   leftHeadXPixels, leftHeadYPixels);
+        graphicsContext.strokeLine(arrowEndXPixels, arrowEndYPixels,
+                                   rightHeadXPixels, rightHeadYPixels);
     }
 
-    private double clamp(final double value,
-                         final double minimum,
-                         final double maximum)
-    {
-        return Math.max(minimum, Math.min(maximum, value));
-    }
+    // -------------------- Scoring / persistence --------------------
 
     private String buildParAndScoreText()
     {
@@ -629,44 +558,30 @@ public final class GolfGameInterface
                 ? "No best score yet"
                 : "Best: " + bestScoreFromFile;
 
-        // Streaming & filtering example: count sand tiles.
-        final long sandTileCount = terrainTiles.stream()
-                                               .filter(tile -> tile.terrainType == TerrainType.SAND)
-                                               .count();
+        final long sandTileCount =
+            golfCourse.getTerrainTiles().stream()
+                      .filter(tile -> tile.getTerrainType() == TerrainType.SAND)
+                      .count();
 
-        final String sandSummary =
-            "Sand tiles: " + sandTileCount;
+        final String sandSummary = "Sand tiles: " + sandTileCount;
 
-        return "Par: " + parForHole + " | Strokes: " + strokesTakenCount
-               + " | " + bestScoreText + " | " + sandSummary;
+        return "Par: " + parForHole
+               + " | Strokes: " + strokesTakenCount
+               + " | " + bestScoreText
+               + " | " + sandSummary;
+    }
+
+    private void updateParAndScoreLabel()
+    {
+        if (parAndScoreLabel != null)
+        {
+            parAndScoreLabel.setText(buildParAndScoreText());
+        }
     }
 
     private void loadBestScoreFromFile()
     {
-        try
-        {
-            if (Files.exists(HIGH_SCORE_FILE_PATH))
-            {
-                final List<String> fileLines =
-                    Files.readAllLines(HIGH_SCORE_FILE_PATH);
-
-                final List<Integer> parsedScores =
-                    fileLines.stream()
-                             .map(String::trim)
-                             .filter(line -> !line.isEmpty())
-                             .map(Integer::parseInt)
-                             .collect(Collectors.toList());
-
-                if (!parsedScores.isEmpty())
-                {
-                    bestScoreFromFile = parsedScores.getFirst();
-                }
-            }
-        }
-        catch (final IOException | NumberFormatException exception)
-        {
-            bestScoreFromFile = null;
-        }
+        bestScoreFromFile = HighScoreStorage.loadBestScore();
     }
 
     private void updateBestScoreIfNeeded()
@@ -674,223 +589,9 @@ public final class GolfGameInterface
         if (bestScoreFromFile == null || strokesTakenCount < bestScoreFromFile)
         {
             bestScoreFromFile = strokesTakenCount;
-
-            try
-            {
-                final String scoreAsString = Integer.toString(strokesTakenCount);
-                Files.writeString(HIGH_SCORE_FILE_PATH, scoreAsString);
-            }
-            catch (final IOException ioException)
-            {
-                statusLabel.setText("Hole complete, but failed to save best score.");
-            }
+            HighScoreStorage.saveBestScore(bestScoreFromFile, statusLabel);
         }
 
-        parAndScoreLabel.setText(buildParAndScoreText());
-    }
-
-    // -------------------- Nested classes / enums --------------------
-
-    private enum TerrainType
-    {
-        FAIRWAY,
-        ROUGH,
-        SAND,
-        WATER,
-        HOLE
-    }
-
-    private enum ClubType
-    {
-        DRIVER,
-        WEDGE,
-        PUTTER
-    }
-
-    /**
-     * Simple ball state container.
-     * Nested class (week 7).
-     */
-    /**
-     * Simple ball state container.
-     * Nested class (week 7).
-     */
-    private static final class BallState
-    {
-        double positionX;
-        double positionY;
-
-        double velocityX;
-        double velocityY;
-
-        // distanceRemaining is now optional; we no longer rely on it
-        // but keep it so you do not have to change other fields everywhere.
-        double distanceRemaining;
-
-        boolean isMoving;
-
-        BallState(final double positionX,
-                  final double positionY)
-        {
-            this.positionX         = positionX;
-            this.positionY         = positionY;
-            this.velocityX         = 0.0;
-            this.velocityY         = 0.0;
-            this.distanceRemaining = 0.0;
-            this.isMoving          = false;
-        }
-    }
-
-
-    /**
-     * Terrain tile: startX -> endX at a certain ground height.
-     */
-    private static final class TerrainTile
-    {
-        final double      startX;
-        final double      endX;
-        final double      groundY;
-        final TerrainType terrainType;
-
-        TerrainTile(final double startX,
-                    final double endX,
-                    final double groundY,
-                    final TerrainType terrainType)
-        {
-            this.startX      = startX;
-            this.endX        = endX;
-            this.groundY     = groundY;
-            this.terrainType = terrainType;
-        }
-    }
-
-    /**
-     * Context object passed into a club when computing a shot.
-     */
-    private static final class ShotContext
-    {
-        final double powerPercentage;
-        final double terrainDistanceMultiplier;
-
-        ShotContext(final double powerPercentage,
-                    final double terrainDistanceMultiplier)
-        {
-            this.powerPercentage           = powerPercentage;
-            this.terrainDistanceMultiplier = terrainDistanceMultiplier;
-        }
-    }
-
-    /**
-     * Result of a shot.
-     */
-    private static final class ShotResult
-    {
-        final double totalHorizontalDistance;
-
-        ShotResult(final double totalHorizontalDistance)
-        {
-            this.totalHorizontalDistance = totalHorizontalDistance;
-        }
-    }
-
-    /**
-     * Interface (week 4) + Strategy pattern for clubs.
-     */
-    private interface GolfClub
-    {
-        String getDisplayName();
-
-        ShotResult computeShot(ShotContext shotContext);
-    }
-
-    /**
-     * Abstract base class for clubs (week 3).
-     */
-    private static abstract class AbstractGolfClub implements GolfClub
-    {
-        private final   String displayName;
-        protected final double baseDistance;
-
-        protected AbstractGolfClub(final String displayName,
-                                   final double baseDistance)
-        {
-            this.displayName  = displayName;
-            this.baseDistance = baseDistance;
-        }
-
-        @Override
-        public String getDisplayName()
-        {
-            return displayName;
-        }
-
-        @Override
-        public ShotResult computeShot(final ShotContext shotContext)
-        {
-            final double powerMultiplier = shotContext.powerPercentage / 100.0;
-            final double terrainMultiplier = shotContext.terrainDistanceMultiplier;
-
-            final double rawDistance = baseDistance * powerMultiplier * terrainMultiplier;
-            final double adjustedDistance = adjustDistanceForClub(rawDistance, shotContext);
-
-            return new ShotResult(adjustedDistance);
-        }
-
-        /**
-         * Template method that concrete clubs override.
-         */
-        protected abstract double adjustDistanceForClub(double rawDistance,
-                                                        ShotContext shotContext);
-    }
-
-    private static final class DriverGolfClub extends AbstractGolfClub
-    {
-        DriverGolfClub(final String displayName,
-                       final double baseDistance)
-        {
-            super(displayName, baseDistance);
-        }
-
-        @Override
-        protected double adjustDistanceForClub(final double rawDistance,
-                                               final ShotContext shotContext)
-        {
-            // Driver: best on fairway, slightly penalized in rough/sand (handled by terrain).
-            return rawDistance;
-        }
-    }
-
-    private static final class WedgeGolfClub extends AbstractGolfClub
-    {
-        WedgeGolfClub(final String displayName,
-                      final double baseDistance)
-        {
-            super(displayName, baseDistance);
-        }
-
-        @Override
-        protected double adjustDistanceForClub(final double rawDistance,
-                                               final ShotContext shotContext)
-        {
-            // Wedge: slightly better from bad lies, give a small boost.
-            return rawDistance * 1.1;
-        }
-    }
-
-    private static final class PutterGolfClub extends AbstractGolfClub
-    {
-        PutterGolfClub(final String displayName,
-                       final double baseDistance)
-        {
-            super(displayName, baseDistance);
-        }
-
-        @Override
-        protected double adjustDistanceForClub(final double rawDistance,
-                                               final ShotContext shotContext)
-        {
-            // Putter: very consistent and short; cap distance.
-            return Math.min(rawDistance, 80.0);
-        }
+        updateParAndScoreLabel();
     }
 }
