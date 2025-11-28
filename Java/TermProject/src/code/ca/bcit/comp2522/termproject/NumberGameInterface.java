@@ -87,7 +87,7 @@ public final class NumberGameInterface
     {
         final Stage gameStage = new Stage();
 
-        gameStage.setOnCloseRequest(event ->
+        gameStage.setOnCloseRequest(_ ->
                                     {
                                         if (gameFinishedLatch != null)
                                         {

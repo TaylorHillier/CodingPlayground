@@ -7,15 +7,6 @@ import java.util.concurrent.CountDownLatch;
 
 /**
  * Entry point for running multiple games through a text-based menu.
- * This class manages the loop that reads user selections, launches the
- * appropriate game, and waits for UI-based games (JavaFX) to finish
- * using a {@link CountDownLatch}. It also safely initializes JavaFX
- * exactly once and reuses the runtime for subsequent Number Game launches.
- * <p>
- * The program continues prompting until the user chooses to quit.
- *
- * @author Taylor Hillier
- * @version 1.0
  */
 public final class Main
 {
@@ -23,7 +14,7 @@ public final class Main
 
     private static final char WORD_GAME_OPTION_CHAR   = 'W';
     private static final char NUMBER_GAME_OPTION_CHAR = 'N';
-    private static final char CUSTOM_GAME_OPTION_CHAR = 'M';
+    private static final char CUSTOM_GAME_OPTION_CHAR = 'G'; // G for Golf
     private static final char QUIT_OPTION_CHAR        = 'Q';
 
     private static final String MENU_TEXT_WORD_GAME   =
@@ -31,7 +22,7 @@ public final class Main
     private static final String MENU_TEXT_NUMBER_GAME =
         "Press N to play the Number game.";
     private static final String MENU_TEXT_CUSTOM_GAME =
-        "Press M to play the <your game's name> game.";
+        "Press G to play the Golf game.";
     private static final String MENU_TEXT_QUIT        =
         "Press Q to quit.";
 
@@ -39,16 +30,17 @@ public final class Main
 
     private static boolean javafxStarted = false;
 
+    private Main()
+    {
+        // Prevent instantiation.
+    }
+
     /**
-     * Drives the game selector loop. Prompts the user for input, and depending
-     * on the selected option, launches either a console-based game or a JavaFX-based one.
-     * The loop continues until the quit option is selected.
-     *
-     * @param args command-line arguments (unused)
+     * Drives the game selector loop.
      */
     public static void main(final String[] args)
     {
-        final Scanner scanner = new Scanner(System.in);
+        final Scanner userInputScanner = new Scanner(System.in);
 
         while (true)
         {
@@ -57,40 +49,47 @@ public final class Main
             System.out.println(MENU_TEXT_CUSTOM_GAME);
             System.out.println(MENU_TEXT_QUIT);
 
-            final String rawInput = scanner.nextLine().trim().toUpperCase();
+            final String rawInput = userInputScanner.nextLine().trim().toUpperCase();
 
             if (rawInput.isEmpty())
             {
                 continue;
             }
 
-            final char firstCharacter = rawInput.charAt(0);
+            final char menuSelectionCharacter = rawInput.charAt(0);
 
-            if (firstCharacter == WORD_GAME_OPTION_CHAR)
+            if (menuSelectionCharacter == WORD_GAME_OPTION_CHAR)
             {
-                final WordGame wordGame = new WordGame(scanner);
+                final WordGame wordGame = new WordGame(userInputScanner);
                 wordGame.playWordGame();
             }
-            else if (firstCharacter == NUMBER_GAME_OPTION_CHAR)
+            else if (menuSelectionCharacter == NUMBER_GAME_OPTION_CHAR)
             {
                 final CountDownLatch gameFinishedLatch = new CountDownLatch(1);
 
-                openNumberGameWindow(gameFinishedLatch);
+                openJavaFxGameWindow(() ->
+                                     {
+                                         final NumberGameInterface numberGameInterface =
+                                             new NumberGameInterface(gameFinishedLatch);
+                                         numberGameInterface.openInNewStage();
+                                     });
 
-                try
-                {
-                    gameFinishedLatch.await();
-                }
-                catch (final InterruptedException interruption)
-                {
-                    Thread.currentThread().interrupt();
-                }
+                awaitLatch(gameFinishedLatch);
             }
-            else if (firstCharacter == CUSTOM_GAME_OPTION_CHAR)
+            else if (menuSelectionCharacter == CUSTOM_GAME_OPTION_CHAR)
             {
-                // Reserved for user-defined future game.
+                final CountDownLatch gameFinishedLatch = new CountDownLatch(1);
+
+                openJavaFxGameWindow(() ->
+                                     {
+                                         final GolfGameInterface golfGameInterface =
+                                             new GolfGameInterface(gameFinishedLatch);
+                                         golfGameInterface.openInNewStage();
+                                     });
+
+                awaitLatch(gameFinishedLatch);
             }
-            else if (firstCharacter == QUIT_OPTION_CHAR)
+            else if (menuSelectionCharacter == QUIT_OPTION_CHAR)
             {
                 break;
             }
@@ -100,10 +99,14 @@ public final class Main
             }
         }
 
-        scanner.close();
+        userInputScanner.close();
     }
 
-    private static void openNumberGameWindow(final CountDownLatch gameFinishedLatch)
+    /**
+     * Uses a lambda (week 6) to open any JavaFX game window.
+     * Reuses a single JavaFX runtime (Platform.startup only once).
+     */
+    private static void openJavaFxGameWindow(final Runnable gameWindowCreator)
     {
         if (!javafxStarted)
         {
@@ -112,22 +115,24 @@ public final class Main
             Platform.startup(() ->
                              {
                                  Platform.setImplicitExit(false);
-
-                                 final NumberGameInterface numberGame =
-                                     new NumberGameInterface(gameFinishedLatch);
-
-                                 numberGame.openInNewStage();
+                                 gameWindowCreator.run();
                              });
         }
         else
         {
-            Platform.runLater(() ->
-                              {
-                                  final NumberGameInterface numberGame =
-                                      new NumberGameInterface(gameFinishedLatch);
+            Platform.runLater(gameWindowCreator);
+        }
+    }
 
-                                  numberGame.openInNewStage();
-                              });
+    private static void awaitLatch(final CountDownLatch gameFinishedLatch)
+    {
+        try
+        {
+            gameFinishedLatch.await();
+        }
+        catch (final InterruptedException interruption)
+        {
+            Thread.currentThread().interrupt();
         }
     }
 }
