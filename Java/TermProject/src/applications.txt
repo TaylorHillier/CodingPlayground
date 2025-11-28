@@ -1,0 +1,16 @@
+lesson1:  Initializer in GolfGameInterface line 156
+          Static constants in all golf club classes
+lesson2:  Checked exceptions in HighScoreStorage line 70, 105
+          Extension/Inheritance in WedgeGolfClub,DriverGolfClub, PutterGolfClub, all extending AbstractGolfClub
+lesson3:  Abstract class AbstractGolfClub
+          All golf club classes are final classes
+lesson4:  Polymorphism through GolfGameInterface and AbstractGolfClub
+lesson5:  Foreach loop through array in GolfGameInterface line 929, 930
+          ArrayList in CourseGenerator line 124, 125
+lesson6:  multiple lambdas in GolfGameInterface including line 204
+lesson7:  method references on line 929, 193
+          PECS/Generic in TerrainTileUtils
+lesson9:  File/Directory creation in HighScoreStorage
+lesson10: Stream in GolfGameInterface on line 1157
+lesson11: GUI in GolfGameInterface
+lesson12:

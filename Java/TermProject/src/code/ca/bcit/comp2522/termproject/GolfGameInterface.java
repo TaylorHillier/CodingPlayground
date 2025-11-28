@@ -123,6 +123,24 @@ public final class GolfGameInterface
     private static final double INIT_TO_ZERO_DOUBLE = 0.0;
     private static final int    INIT_TO_ZERO_INT    = 0;
 
+    {
+        randomNumberGenerator = new Random();
+        golfClubsByType       = new EnumMap<>(ClubType.class);
+
+        cameraOffsetXPixels = INIT_TO_ZERO_DOUBLE;
+        strokesTakenCount   = INIT_TO_ZERO_INT;
+        parForHole          = INIT_TO_ZERO_INT;
+
+        currentAimAngleDegrees = DEFAULT_LAUNCH_ANGLE_DEGREES;
+        currentPowerPercentage = INIT_TO_ZERO_DOUBLE;
+        chargingPower          = false;
+
+        golfCourses      = new ArrayList<>();
+        parPerHole       = new ArrayList<>();
+        strokesPerHole   = new ArrayList<>();
+        currentHoleIndex = INIT_TO_ZERO_INT;
+    }
+
     /**
      * Constructs the GolfGameInterface, initializing clubs, course, ball, and score.
      *
@@ -131,25 +149,6 @@ public final class GolfGameInterface
     public GolfGameInterface(final CountDownLatch gameFinishedLatch)
     {
         this.gameFinishedLatch = gameFinishedLatch;
-
-        randomNumberGenerator = new Random();
-        golfClubsByType       = new EnumMap<>(ClubType.class);
-
-        cameraOffsetXPixels = INIT_TO_ZERO_DOUBLE;
-        strokesTakenCount   = INIT_TO_ZERO_INT;
-        parForHole          = INIT_TO_ZERO_INT;
-
-        initializeClubs();
-
-        golfCourses      = new ArrayList<>();
-        parPerHole       = new ArrayList<>();
-        strokesPerHole   = new ArrayList<>();
-        currentHoleIndex = INIT_TO_ZERO_INT;
-
-        currentAimAngleDegrees = DEFAULT_LAUNCH_ANGLE_DEGREES;
-        currentPowerPercentage = INIT_TO_ZERO_DOUBLE;
-        chargingPower          = false;
-
         bestRoundRelativeToPar = HighScoreStorage.loadBestRoundRelativeToPar();
     }
 
@@ -380,17 +379,12 @@ public final class GolfGameInterface
         final double ballStartXPixels;
         final double ballStartYPixels;
 
-        terrainTiles   = golfCourse.getTerrainTiles();
-        teeTerrainTile = null;
+        terrainTiles = golfCourse.getTerrainTiles();
 
-        for (final TerrainTile terrainTile : terrainTiles)
-        {
-            if (terrainTile.getTerrainType() == TerrainType.FAIRWAY)
-            {
-                teeTerrainTile = terrainTile;
-                break;
-            }
-        }
+        teeTerrainTile = TerrainTileUtils.findFirstTileOfType(
+            terrainTiles,
+            TerrainType.FAIRWAY
+                                                             );
 
         if (teeTerrainTile == null)
         {
@@ -560,14 +554,7 @@ public final class GolfGameInterface
 
         shotResult = selectedGolfClub.computeShot(shotContext);
 
-        if (selectedClubType == ClubType.PUTTER)
-        {
-            launchAngleDegrees = INIT_TO_ZERO_DOUBLE;
-        }
-        else
-        {
-            launchAngleDegrees = currentAimAngleDegrees;
-        }
+        launchAngleDegrees = currentAimAngleDegrees;
 
         if (selectedClubType == ClubType.PUTTER)
         {
@@ -617,7 +604,6 @@ public final class GolfGameInterface
 
         if (selectedClubType == ClubType.PUTTER)
         {
-            launchAngleDegrees              = INIT_TO_ZERO_DOUBLE;
             initialVelocityYPixelsPerSecond = INIT_TO_ZERO_DOUBLE;
         }
 
@@ -877,7 +863,7 @@ public final class GolfGameInterface
     {
         int totalPar;
 
-        totalPar = 0;
+        totalPar = INIT_TO_ZERO_INT;
 
         for (int holeIndex = 0; holeIndex <= currentHoleIndex && holeIndex < parPerHole.size(); holeIndex++)
         {

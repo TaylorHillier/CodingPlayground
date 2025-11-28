@@ -285,25 +285,58 @@ public final class ProjectilePhysics
             {
                 final double currentVelocityXPixelsPerSecond;
                 final double currentVelocityYPixelsPerSecond;
-                final double newHorizontalVelocityXPixelsPerSecond;
-                final double newVerticalVelocityYPixelsPerSecond;
-
 
                 currentVelocityXPixelsPerSecond = golfBall.getVelocityXPixelsPerSecond();
-
                 currentVelocityYPixelsPerSecond = golfBall.getVelocityYPixelsPerSecond();
 
-                newHorizontalVelocityXPixelsPerSecond = -currentVelocityXPixelsPerSecond
-                                                        * AIR_OBSTACLE_HORIZONTAL_RESTITUTION_FACTOR;
+                // Decide which side we hit: top/bottom vs left/right.
+                final boolean hitTop;
+                final boolean hitBottom;
 
-                newVerticalVelocityYPixelsPerSecond = -currentVelocityYPixelsPerSecond
-                                                      * AIR_OBSTACLE_VERTICAL_DAMPING_FACTOR;
+                hitTop =
+                    (ballCenterYPixels <= airObstacle.getTopYPixels())
+                    && (closestYPixels == airObstacle.getTopYPixels());
 
-                golfBall.setVelocityXPixelsPerSecond(newHorizontalVelocityXPixelsPerSecond);
-                golfBall.setVelocityYPixelsPerSecond(newVerticalVelocityYPixelsPerSecond);
+                hitBottom =
+                    (ballCenterYPixels >= airObstacle.getBottomYPixels())
+                    && (closestYPixels == airObstacle.getBottomYPixels());
+
+                if (hitTop || hitBottom)
+                {
+                    // Vertical collision (top or bottom of the block)
+                    // → flip vertical velocity, lightly damp horizontal.
+                    final double newVerticalVelocityPixelsPerSecond;
+                    final double newHorizontalVelocityPixelsPerSecond;
+
+                    newVerticalVelocityPixelsPerSecond =
+                        -currentVelocityYPixelsPerSecond * AIR_OBSTACLE_VERTICAL_DAMPING_FACTOR;
+
+                    newHorizontalVelocityPixelsPerSecond =
+                        currentVelocityXPixelsPerSecond * AIR_OBSTACLE_HORIZONTAL_RESTITUTION_FACTOR;
+
+                    golfBall.setVelocityYPixelsPerSecond(newVerticalVelocityPixelsPerSecond);
+                    golfBall.setVelocityXPixelsPerSecond(newHorizontalVelocityPixelsPerSecond);
+                }
+                else
+                {
+                    // Side collision (left or right)
+                    // → flip horizontal velocity, lightly damp vertical.
+                    final double newHorizontalVelocityXPixelsPerSecond;
+                    final double newVerticalVelocityYPixelsPerSecond;
+
+                    newHorizontalVelocityXPixelsPerSecond =
+                        -currentVelocityXPixelsPerSecond * AIR_OBSTACLE_HORIZONTAL_RESTITUTION_FACTOR;
+
+                    newVerticalVelocityYPixelsPerSecond =
+                        currentVelocityYPixelsPerSecond * AIR_OBSTACLE_VERTICAL_DAMPING_FACTOR;
+
+                    golfBall.setVelocityXPixelsPerSecond(newHorizontalVelocityXPixelsPerSecond);
+                    golfBall.setVelocityYPixelsPerSecond(newVerticalVelocityYPixelsPerSecond);
+                }
 
                 return true;
             }
+
         }
 
         return false;
