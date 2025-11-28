@@ -8,12 +8,15 @@ import javafx.scene.canvas.GraphicsContext;
 import javafx.scene.control.Button;
 import javafx.scene.control.ComboBox;
 import javafx.scene.control.Label;
-import javafx.scene.control.Slider;
+import javafx.scene.input.KeyCode;
+import javafx.scene.input.KeyEvent;
+import javafx.scene.input.MouseEvent;
 import javafx.scene.layout.BorderPane;
 import javafx.scene.layout.HBox;
 import javafx.scene.paint.Color;
 import javafx.stage.Stage;
 
+import java.util.ArrayList;
 import java.util.EnumMap;
 import java.util.List;
 import java.util.Map;
@@ -34,29 +37,54 @@ public final class GolfGameInterface
 
     private static final double BALL_RADIUS_PIXELS = 6.0;
 
+    private static final double BASE_GROUND_CENTER_Y_RATIO = 0.75;
+
     private static final double CAMERA_CENTER_THRESHOLD_RATIO = 0.4;
 
-    private static final int    NUMBER_OF_TILES_PER_HOLE   = 30;
-    private static final double TILE_WIDTH_PIXELS          = 40.0;
-    private static final double BASE_GROUND_CENTER_YPixels =
-        CANVAS_HEIGHT_PIXELS * 0.75;
+    private static final int    NUMBER_OF_TILES_PER_HOLE = 30;
+    private static final double TILE_WIDTH_PIXELS        = 40.0;
 
-    private static final double SAND_DISTANCE_MULTIPLIER    = 0.40; // 60% less far
+    private static final double SAND_DISTANCE_MULTIPLIER    = 0.40;
     private static final double ROUGH_DISTANCE_MULTIPLIER   = 0.70;
     private static final double FAIRWAY_DISTANCE_MULTIPLIER = 1.00;
 
-    private static final double MINIMUM_LAUNCH_ANGLE_DEGREES = 15.0;
-    private static final double MAXIMUM_LAUNCH_ANGLE_DEGREES = 70.0;
+    private static final double MINIMUM_LAUNCH_ANGLE_DEGREES = 5.0;
+    private static final double MAXIMUM_LAUNCH_ANGLE_DEGREES = 175.0;
     private static final double DEFAULT_LAUNCH_ANGLE_DEGREES = 45.0;
 
-    private static final double MINIMUM_POWER_PERCENTAGE = 10.0;
     private static final double MAXIMUM_POWER_PERCENTAGE = 100.0;
-    private static final double DEFAULT_POWER_PERCENTAGE = 60.0;
 
     private static final double AIM_ARROW_BASE_LENGTH_PIXELS  = 80.0;
     private static final double AIM_ARROW_EXTRA_LENGTH_PIXELS = 80.0;
     private static final double AIM_ARROW_HEAD_LENGTH_PIXELS  = 12.0;
     private static final double AIM_ARROW_HEAD_ANGLE_DEGREES  = 160.0;
+
+    private static final double COURSE_HEIGHT_SAFETY_FACTOR      = 0.70;
+    private static final double MINIMUM_MAX_HEIGHT_OFFSET_PIXELS = 40.0;
+
+    private static final double POWER_CHARGE_RATE_PERCENT_PER_SECOND = 70.0;
+
+    private static final int NUMBER_OF_HOLES_PER_ROUND = 18;
+
+    private static final double CONTROL_PANEL_SPACING_PIXELS                    = 10.0;
+    private static final double CONTROL_PANEL_PADDING_PIXELS                    = 8.0;
+    private static final double ALTER_BY_ONE                                    = 1.0;
+    private static final double MINIMUM_AIM_DELTA_X_PIXELS                      = 0.001;
+    private static final double MINIMUM_INITIAL_SPEED_EPSILON_PIXELS_PER_SECOND = 0.01;
+
+    private static final double BALL_RADIUS_MULTIPLIER                = 2.0;
+    private static final int    NEXT_HOLE_INDEX                       = 1;
+    private static final double TEE_BALL_OFFSET_RATIO_FROM_TILE_START = 0.25;
+
+    private static final double FLAG_HEIGHT_PIXELS                  = 40.0;
+    private static final double FLAG_TRIANGLE_OFFSET_X_PIXELS       = 18.0;
+    private static final double FLAG_TRIANGLE_OFFSET_Y_SMALL_PIXELS = 8.0;
+    private static final double FLAG_TRIANGLE_OFFSET_Y_LARGE_PIXELS = 16.0;
+
+    private static final double ARROW_LINE_WIDTH_PIXELS = 2.0;
+    private static final double FLAG_POLE_X_MULTIPLIER  = 0.5;
+
+    private static final int POLYGON_FILL = 3;
 
     private final CountDownLatch gameFinishedLatch;
 
@@ -67,23 +95,33 @@ public final class GolfGameInterface
     private Canvas          gameCanvas;
     private GraphicsContext graphicsContext;
 
+    private final List<GolfCourse> golfCourses;
+    private final List<Integer>    parPerHole;
+    private final List<Integer>    strokesPerHole;
+    private       int              currentHoleIndex;
+
+    private Integer bestRoundRelativeToPar;
+
     private GolfCourse golfCourse;
     private GolfBall   golfBall;
 
     private double cameraOffsetXPixels;
 
-    private int     strokesTakenCount;
-    private Integer bestScoreFromFile;
-    private int     parForHole;
+    private int strokesTakenCount;
+    private int parForHole;
 
     private AnimationTimer animationTimer;
 
-    // UI controls
     private ComboBox<ClubType> clubSelectionComboBox;
-    private Slider             shotPowerSlider;
-    private Slider             launchAngleSlider;
-    private Label              statusLabel;
-    private Label              parAndScoreLabel;
+    private double             currentAimAngleDegrees;
+    private double             currentPowerPercentage;
+    private boolean            chargingPower;
+
+    private Label statusLabel;
+    private Label parAndScoreLabel;
+
+    private static final double INIT_TO_ZERO_DOUBLE = 0.0;
+    private static final int    INIT_TO_ZERO_INT    = 0;
 
     /**
      * Constructs the GolfGameInterface, initializing clubs, course, ball, and score.
@@ -93,16 +131,26 @@ public final class GolfGameInterface
     public GolfGameInterface(final CountDownLatch gameFinishedLatch)
     {
         this.gameFinishedLatch = gameFinishedLatch;
-        randomNumberGenerator  = new Random();
-        golfClubsByType        = new EnumMap<>(ClubType.class);
-        cameraOffsetXPixels    = 0.0;
-        strokesTakenCount      = 0;
-        bestScoreFromFile      = null;
-        parForHole             = 0;
+
+        randomNumberGenerator = new Random();
+        golfClubsByType       = new EnumMap<>(ClubType.class);
+
+        cameraOffsetXPixels = INIT_TO_ZERO_DOUBLE;
+        strokesTakenCount   = INIT_TO_ZERO_INT;
+        parForHole          = INIT_TO_ZERO_INT;
 
         initializeClubs();
-        generateNewHole();
-        loadBestScoreFromFile();
+
+        golfCourses      = new ArrayList<>();
+        parPerHole       = new ArrayList<>();
+        strokesPerHole   = new ArrayList<>();
+        currentHoleIndex = INIT_TO_ZERO_INT;
+
+        currentAimAngleDegrees = DEFAULT_LAUNCH_ANGLE_DEGREES;
+        currentPowerPercentage = INIT_TO_ZERO_DOUBLE;
+        chargingPower          = false;
+
+        bestRoundRelativeToPar = HighScoreStorage.loadBestRoundRelativeToPar();
     }
 
     /**
@@ -110,22 +158,50 @@ public final class GolfGameInterface
      */
     public void openInNewStage()
     {
+        final BorderPane rootPane;
+        final Scene scene;
+
         gameStage = new Stage();
         gameStage.setTitle("Simple Golf Game");
 
-        gameCanvas      = new Canvas(CANVAS_WIDTH_PIXELS, CANVAS_HEIGHT_PIXELS);
+        gameCanvas = new Canvas(CANVAS_WIDTH_PIXELS, CANVAS_HEIGHT_PIXELS);
+        gameCanvas.getStyleClass().add("game-canvas");
+
         graphicsContext = gameCanvas.getGraphicsContext2D();
 
-        final BorderPane rootPane = new BorderPane();
+        rootPane = new BorderPane();
+        rootPane.getStyleClass().add("game-root");
         rootPane.setCenter(gameCanvas);
         rootPane.setBottom(createControlPanel());
 
-        final Scene scene = new Scene(rootPane);
+        scene = new Scene(rootPane);
+
+        final var cssResource = GolfGameInterface.class.getResource("/styles.css");
+        if (cssResource != null)
+        {
+            scene.getStylesheets().add(cssResource.toExternalForm());
+        }
+        else
+        {
+            System.err.println("WARNING: styles.css not found.");
+        }
+
         gameStage.setScene(scene);
+
+        gameCanvas.setFocusTraversable(true);
+        gameCanvas.requestFocus();
+
+        gameCanvas.setOnMouseMoved(this::handleMouseMoved);
+
+        scene.setOnKeyPressed(this::handleKeyPressed);
+        scene.setOnKeyReleased(this::handleKeyReleased);
+
+        generateNewRound();
+        updateParAndScoreLabel();
 
         setupAnimationLoop();
 
-        gameStage.setOnCloseRequest(windowEvent ->
+        gameStage.setOnCloseRequest(_ ->
                                     {
                                         if (animationTimer != null)
                                         {
@@ -137,87 +213,256 @@ public final class GolfGameInterface
         gameStage.show();
     }
 
-    // -------------------- Initialization --------------------
-
     private void initializeClubs()
     {
         golfClubsByType.put(ClubType.DRIVER,
-                            new DriverGolfClub("Driver", 260.0));
+                            new DriverGolfClub("Driver", DriverGolfClub.DRIVER_YARDAGE));
         golfClubsByType.put(ClubType.WEDGE,
-                            new WedgeGolfClub("Wedge", 140.0));
+                            new WedgeGolfClub("Wedge", WedgeGolfClub.WEDGE_YARDAGE));
         golfClubsByType.put(ClubType.PUTTER,
-                            new PutterGolfClub("Putter", 60.0));
+                            new PutterGolfClub("Putter", PutterGolfClub.PUTTER_BASE_DISTANCE_PIXELS));
     }
 
-    private void generateNewHole()
+    private void generateNewRound()
     {
-        golfCourse = CourseGenerator.generateSingleHole(
-            randomNumberGenerator,
-            NUMBER_OF_TILES_PER_HOLE,
-            TILE_WIDTH_PIXELS,
-            BASE_GROUND_CENTER_YPixels
-                                                       );
+        final double maximumHeightOffsetPixels;
 
-        parForHole = golfCourse.getParStrokes();
+        golfCourses.clear();
+        parPerHole.clear();
+        strokesPerHole.clear();
+        currentHoleIndex = INIT_TO_ZERO_INT;
+
+        maximumHeightOffsetPixels = ProjectilePhysics.computeMaximumHeightOffsetForCourse(
+            golfClubsByType.get(ClubType.WEDGE),
+            MAXIMUM_POWER_PERCENTAGE,
+            FAIRWAY_DISTANCE_MULTIPLIER,
+            MAXIMUM_LAUNCH_ANGLE_DEGREES,
+            COURSE_HEIGHT_SAFETY_FACTOR,
+            MINIMUM_MAX_HEIGHT_OFFSET_PIXELS);
+
+        for (int holeIndex = 0; holeIndex < NUMBER_OF_HOLES_PER_ROUND; holeIndex++)
+        {
+            final GolfCourse generatedHole;
+            final int parForThisHole;
+
+            generatedHole = CourseGenerator.generateSingleHole(
+                randomNumberGenerator,
+                NUMBER_OF_TILES_PER_HOLE,
+                TILE_WIDTH_PIXELS,
+                CANVAS_HEIGHT_PIXELS * BASE_GROUND_CENTER_Y_RATIO,
+                maximumHeightOffsetPixels);
+
+            parForThisHole = generatedHole.computePar(
+                golfClubsByType,
+                MAXIMUM_POWER_PERCENTAGE,
+                FAIRWAY_DISTANCE_MULTIPLIER);
+
+            golfCourses.add(generatedHole);
+            parPerHole.add(parForThisHole);
+            strokesPerHole.add(INIT_TO_ZERO_INT);
+        }
+
+        startHole(INIT_TO_ZERO_INT);
+    }
+
+    private void startHole(final int holeIndex)
+    {
+        currentHoleIndex = holeIndex;
+        golfCourse       = golfCourses.get(holeIndex);
+        parForHole       = parPerHole.get(holeIndex);
+
         initializeBallAtTee();
+        statusLabel.setText(
+            "Hole " + (holeIndex + NEXT_HOLE_INDEX) + " of " + NUMBER_OF_HOLES_PER_ROUND
+            + ". Move mouse to aim, hold SPACE to charge, release to hit."
+                           );
+    }
+
+    private void handleMouseMoved(final MouseEvent mouseEvent)
+    {
+        final double mouseScreenXPixels;
+        final double mouseScreenYPixels;
+
+        final double mouseWorldXPixels;
+        final double mouseWorldYPixels;
+
+        final double ballWorldXPixels;
+        final double ballWorldYPixels;
+
+        double deltaXPixels;
+        double deltaYPixels;
+
+        double aimAngleDegrees;
+
+        gameCanvas.requestFocus();
+
+        if (golfBall.isMoving())
+        {
+            return;
+        }
+
+        mouseScreenXPixels = mouseEvent.getX();
+        mouseScreenYPixels = mouseEvent.getY();
+
+        mouseWorldXPixels = mouseScreenXPixels + cameraOffsetXPixels;
+        mouseWorldYPixels = mouseScreenYPixels;
+
+        ballWorldXPixels = golfBall.getPositionXPixels();
+        ballWorldYPixels = golfBall.getPositionYPixels();
+
+        deltaXPixels = mouseWorldXPixels - ballWorldXPixels;
+        deltaYPixels = ballWorldYPixels - mouseWorldYPixels;
+
+        final boolean isDeltaXTooSmall =
+            Math.abs(deltaXPixels) < MINIMUM_AIM_DELTA_X_PIXELS;
+
+        if (isDeltaXTooSmall)
+        {
+            final double directionSign;
+
+            if (deltaXPixels >= INIT_TO_ZERO_DOUBLE)
+            {
+                directionSign = ALTER_BY_ONE;
+            }
+            else
+            {
+                directionSign = -ALTER_BY_ONE;
+            }
+
+            deltaXPixels = directionSign * MINIMUM_AIM_DELTA_X_PIXELS;
+        }
+
+        aimAngleDegrees = Math.toDegrees(Math.atan2(deltaYPixels, deltaXPixels));
+
+        if (aimAngleDegrees < MINIMUM_LAUNCH_ANGLE_DEGREES)
+        {
+            aimAngleDegrees = MINIMUM_LAUNCH_ANGLE_DEGREES;
+        }
+        else if (aimAngleDegrees > MAXIMUM_LAUNCH_ANGLE_DEGREES)
+        {
+            aimAngleDegrees = MAXIMUM_LAUNCH_ANGLE_DEGREES;
+        }
+
+        final ClubType selectedClub = clubSelectionComboBox.getSelectionModel().getSelectedItem();
+        currentAimAngleDegrees = aimAngleDegrees;
+    }
+
+    private void handleKeyPressed(final KeyEvent keyEvent)
+    {
+        if (keyEvent.getCode() == KeyCode.SPACE)
+        {
+            if (!chargingPower && !golfBall.isMoving())
+            {
+                chargingPower          = true;
+                currentPowerPercentage = INIT_TO_ZERO_DOUBLE;
+                statusLabel.setText("Charging shot power... release SPACE to hit.");
+            }
+        }
+    }
+
+    private void handleKeyReleased(final KeyEvent keyEvent)
+    {
+        if (keyEvent.getCode() == KeyCode.SPACE)
+        {
+            if (chargingPower && !golfBall.isMoving())
+            {
+                chargingPower = false;
+                performShot();
+            }
+        }
     }
 
     private void initializeBallAtTee()
     {
-        final TerrainTile startTerrainTile = golfCourse.getStartTile();
+        final List<TerrainTile> terrainTiles;
+        TerrainTile teeTerrainTile;
 
-        final double ballStartXPixels =
-            startTerrainTile.getStartXPixels() + TILE_WIDTH_PIXELS * 0.25;
-        final double ballStartYPixels =
-            startTerrainTile.getGroundCenterYPixels() - BALL_RADIUS_PIXELS;
+        final double ballStartXPixels;
+        final double ballStartYPixels;
 
-        golfBall = new GolfBall(ballStartXPixels, ballStartYPixels, BALL_RADIUS_PIXELS);
+        terrainTiles   = golfCourse.getTerrainTiles();
+        teeTerrainTile = null;
 
-        cameraOffsetXPixels = 0.0;
-        strokesTakenCount   = 0;
+        for (final TerrainTile terrainTile : terrainTiles)
+        {
+            if (terrainTile.getTerrainType() == TerrainType.FAIRWAY)
+            {
+                teeTerrainTile = terrainTile;
+                break;
+            }
+        }
+
+        if (teeTerrainTile == null)
+        {
+            teeTerrainTile = golfCourse.getStartTile();
+        }
+
+        ballStartXPixels =
+            teeTerrainTile.getStartXPixels()
+            + TILE_WIDTH_PIXELS * TEE_BALL_OFFSET_RATIO_FROM_TILE_START;
+
+        ballStartYPixels =
+            teeTerrainTile.getGroundCenterYPixels() - BALL_RADIUS_PIXELS;
+
+        if (golfBall == null)
+        {
+            golfBall = new GolfBall(ballStartXPixels, ballStartYPixels, BALL_RADIUS_PIXELS);
+        }
+        else
+        {
+            golfBall.resetToTee(ballStartXPixels, ballStartYPixels);
+        }
+
+        golfBall.markSafePosition();
+
+        cameraOffsetXPixels    = INIT_TO_ZERO_DOUBLE;
+        strokesTakenCount      = INIT_TO_ZERO_INT;
+        currentPowerPercentage = INIT_TO_ZERO_DOUBLE;
+        chargingPower          = false;
+
         updateParAndScoreLabel();
     }
 
     private HBox createControlPanel()
     {
-        final HBox controlPanel = new HBox(10.0);
-        controlPanel.setPadding(new Insets(8.0));
+        final HBox controlPanel;
+        final Button newRoundButton;
+        final Label clubLabel;
+
+        controlPanel = new HBox(CONTROL_PANEL_SPACING_PIXELS);
+        controlPanel.setPadding(new Insets(CONTROL_PANEL_PADDING_PIXELS));
+        controlPanel.getStyleClass().add("game-control-bar");
 
         clubSelectionComboBox = new ComboBox<>();
         clubSelectionComboBox.getItems().addAll(ClubType.values());
         clubSelectionComboBox.getSelectionModel().select(ClubType.DRIVER);
+        clubSelectionComboBox.getStyleClass().add("club-selector");
 
-        shotPowerSlider = new Slider(
-            MINIMUM_POWER_PERCENTAGE,
-            MAXIMUM_POWER_PERCENTAGE,
-            DEFAULT_POWER_PERCENTAGE
+        clubSelectionComboBox.setOnAction(_ -> gameCanvas.requestFocus());
+
+        newRoundButton = new Button("New Round");
+        newRoundButton.setOnAction(_ ->
+                                   {
+                                       generateNewRound();
+                                       gameCanvas.requestFocus();
+                                   });
+        newRoundButton.getStyleClass().add("primary-button");
+
+        statusLabel = new Label(
+            "Move mouse to aim, hold SPACE to charge, release to hit."
         );
-        shotPowerSlider.setShowTickMarks(true);
-        shotPowerSlider.setShowTickLabels(true);
+        statusLabel.getStyleClass().add("status-label");
 
-        launchAngleSlider = new Slider(
-            MINIMUM_LAUNCH_ANGLE_DEGREES,
-            MAXIMUM_LAUNCH_ANGLE_DEGREES,
-            DEFAULT_LAUNCH_ANGLE_DEGREES
-        );
-        launchAngleSlider.setShowTickMarks(true);
-        launchAngleSlider.setShowTickLabels(true);
+        parAndScoreLabel = new Label("");
+        parAndScoreLabel.getStyleClass().add("score-label");
 
-        final Button hitBallButton = new Button("Hit");
-        hitBallButton.setOnAction(actionEvent -> performShot());
-
-        final Button newHoleButton = new Button("New Hole");
-        newHoleButton.setOnAction(actionEvent -> generateNewHole());
-
-        statusLabel      = new Label("Pick a club, angle, power, then hit.");
-        parAndScoreLabel = new Label(buildParAndScoreText());
+        clubLabel = new Label("Club:");
+        clubLabel.getStyleClass().add("control-label");
 
         controlPanel.getChildren().addAll(
-            new Label("Club:"), clubSelectionComboBox,
-            new Label("Angle:"), launchAngleSlider,
-            new Label("Power:"), shotPowerSlider,
-            hitBallButton,
-            newHoleButton,
+            clubLabel,
+            clubSelectionComboBox,
+            newRoundButton,
             parAndScoreLabel,
             statusLabel
                                          );
@@ -229,19 +474,22 @@ public final class GolfGameInterface
     {
         animationTimer = new AnimationTimer()
         {
-            private long lastUpdateNanoseconds = 0L;
+            private long lastUpdateNanoseconds = INIT_TO_ZERO_INT;
 
             @Override
             public void handle(final long currentTimeNanoseconds)
             {
-                if (lastUpdateNanoseconds == 0L)
+                final double deltaTimeSeconds;
+
+                if (lastUpdateNanoseconds == INIT_TO_ZERO_INT)
                 {
                     lastUpdateNanoseconds = currentTimeNanoseconds;
                     return;
                 }
 
-                final double deltaTimeSeconds =
+                deltaTimeSeconds =
                     (currentTimeNanoseconds - lastUpdateNanoseconds) / 1_000_000_000.0;
+
                 lastUpdateNanoseconds = currentTimeNanoseconds;
 
                 updateGameState(deltaTimeSeconds);
@@ -252,17 +500,35 @@ public final class GolfGameInterface
         animationTimer.start();
     }
 
-    // -------------------- Game logic --------------------
-
     private void performShot()
     {
+        final ClubType selectedClubType;
+        final GolfClub selectedGolfClub;
+
+        final TerrainTile terrainTileUnderBall;
+        final double terrainDistanceMultiplier;
+
+        final ShotContext shotContext;
+        final ShotResult shotResult;
+
+        double launchAngleDegrees;
+        final double initialSpeedPixelsPerSecond;
+
+        double initialVelocityXPixelsPerSecond;
+        double initialVelocityYPixelsPerSecond;
+
         if (golfBall.isMoving())
         {
             return;
         }
 
-        final ClubType selectedClubType =
-            clubSelectionComboBox.getSelectionModel().getSelectedItem();
+        if (currentPowerPercentage <= INIT_TO_ZERO_DOUBLE)
+        {
+            statusLabel.setText("No power charged. Hold SPACE before releasing.");
+            return;
+        }
+
+        selectedClubType = clubSelectionComboBox.getSelectionModel().getSelectedItem();
 
         if (selectedClubType == null)
         {
@@ -270,104 +536,312 @@ public final class GolfGameInterface
             return;
         }
 
-        final GolfClub selectedGolfClub = golfClubsByType.get(selectedClubType);
-        final double powerPercentage = shotPowerSlider.getValue();
+        selectedGolfClub = golfClubsByType.get(selectedClubType);
 
-        final TerrainTile currentTerrainTile =
-            golfCourse.getTileAtX(golfBall.getPositionXPixels());
+        terrainTileUnderBall = golfCourse.getTileAtX(golfBall.getPositionXPixels());
 
-        final double terrainDistanceMultiplier = switch (currentTerrainTile.getTerrainType())
+        terrainDistanceMultiplier = switch (terrainTileUnderBall.getTerrainType())
         {
             case SAND -> SAND_DISTANCE_MULTIPLIER;
             case ROUGH -> ROUGH_DISTANCE_MULTIPLIER;
-            case WATER -> 0.0;
+            case WATER -> INIT_TO_ZERO_DOUBLE;
             default -> FAIRWAY_DISTANCE_MULTIPLIER;
         };
 
-        if (terrainDistanceMultiplier == 0.0)
+        if (terrainDistanceMultiplier == INIT_TO_ZERO_DOUBLE)
         {
-            initializeBallAtTee();
+            golfBall.resetToSafePosition();
             statusLabel.setText("Splash! Ball reset to the tee.");
+            recenterCameraIfBallOffscreen();
             return;
         }
 
-        final ShotContext shotContext =
-            new ShotContext(powerPercentage, terrainDistanceMultiplier);
+        shotContext = new ShotContext(currentPowerPercentage, terrainDistanceMultiplier);
 
-        final ShotResult shotResult = selectedGolfClub.computeShot(shotContext);
+        shotResult = selectedGolfClub.computeShot(shotContext);
 
-        final double launchAngleDegrees = launchAngleSlider.getValue();
-        final double initialSpeedPixelsPerSecond =
-            ProjectilePhysics.computeInitialSpeed(
-                shotResult.getExpectedHorizontalRangePixels(),
-                launchAngleDegrees
-                                                 );
-
-        if (initialSpeedPixelsPerSecond <= 0.0)
+        if (selectedClubType == ClubType.PUTTER)
         {
-            statusLabel.setText("Invalid angle for a forward shot.");
-            return;
+            launchAngleDegrees = INIT_TO_ZERO_DOUBLE;
+        }
+        else
+        {
+            launchAngleDegrees = currentAimAngleDegrees;
         }
 
-        final double launchAngleRadians = Math.toRadians(launchAngleDegrees);
+        if (selectedClubType == ClubType.PUTTER)
+        {
+            initialSpeedPixelsPerSecond = shotResult.getExpectedHorizontalRangePixels();
 
-        final double initialVelocityXPixelsPerSecond =
-            initialSpeedPixelsPerSecond * Math.cos(launchAngleRadians);
-        final double initialVelocityYPixelsPerSecond =
-            -initialSpeedPixelsPerSecond * Math.sin(launchAngleRadians);
+            if (initialSpeedPixelsPerSecond <= MINIMUM_INITIAL_SPEED_EPSILON_PIXELS_PER_SECOND)
+            {
+                statusLabel.setText("Putter shot power too low.");
+                return;
+            }
+        }
+        else
+        {
+            // Use a symmetric acute angle for speed calculation so backwards shots still work.
+            final double rightAngleDegrees;
+            rightAngleDegrees = 90.0;
+
+            double effectiveLaunchAngleDegrees;
+            effectiveLaunchAngleDegrees = launchAngleDegrees;
+
+            if (effectiveLaunchAngleDegrees > rightAngleDegrees)
+            {
+                // Map 100° → 80°, 150° → 30°, etc.
+                effectiveLaunchAngleDegrees = (2.0 * rightAngleDegrees) - effectiveLaunchAngleDegrees;
+            }
+
+            final double computedInitialSpeedPixelsPerSecond;
+            computedInitialSpeedPixelsPerSecond = ProjectilePhysics.computeInitialSpeed(
+                shotResult.getExpectedHorizontalRangePixels(),
+                effectiveLaunchAngleDegrees);
+
+            initialSpeedPixelsPerSecond = computedInitialSpeedPixelsPerSecond;
+
+            if (initialSpeedPixelsPerSecond <= MINIMUM_INITIAL_SPEED_EPSILON_PIXELS_PER_SECOND)
+            {
+                statusLabel.setText("Invalid aim. Adjust your aim angle.");
+                return;
+            }
+        }
+
+        final double launchAngleRadians;
+        launchAngleRadians = Math.toRadians(launchAngleDegrees);
+
+        initialVelocityXPixelsPerSecond = initialSpeedPixelsPerSecond * Math.cos(launchAngleRadians);
+
+        initialVelocityYPixelsPerSecond = -initialSpeedPixelsPerSecond * Math.sin(launchAngleRadians);
+
+        if (selectedClubType == ClubType.PUTTER)
+        {
+            launchAngleDegrees              = INIT_TO_ZERO_DOUBLE;
+            initialVelocityYPixelsPerSecond = INIT_TO_ZERO_DOUBLE;
+        }
 
         golfBall.launch(initialVelocityXPixelsPerSecond, initialVelocityYPixelsPerSecond);
 
         strokesTakenCount++;
+        currentPowerPercentage = INIT_TO_ZERO_DOUBLE;
 
         statusLabel.setText(
             "Shot with " + selectedGolfClub.getDisplayName()
             + " at " + Math.round(launchAngleDegrees) + "°"
-            + " power " + Math.round(powerPercentage) + "%"
+            + " power " + Math.round(shotContext.getPowerPercentage()) + "%"
                            );
         updateParAndScoreLabel();
     }
 
+
+    private void finishRoundAndUpdateHighScore()
+    {
+        int totalPar;
+        int totalStrokes;
+        int relativeToPar;
+
+        totalPar     = INIT_TO_ZERO_INT;
+        totalStrokes = INIT_TO_ZERO_INT;
+
+        for (int holeIndex = 0; holeIndex < NUMBER_OF_HOLES_PER_ROUND; holeIndex++)
+        {
+            totalPar += parPerHole.get(holeIndex);
+            totalStrokes += strokesPerHole.get(holeIndex);
+        }
+
+        relativeToPar = totalStrokes - totalPar;
+
+        if (bestRoundRelativeToPar == null || relativeToPar < bestRoundRelativeToPar)
+        {
+            bestRoundRelativeToPar = relativeToPar;
+            HighScoreStorage.saveBestRoundRelativeToPar(bestRoundRelativeToPar, statusLabel);
+        }
+
+        statusLabel.setText(
+            "Round complete! Total strokes: " + totalStrokes
+            + " vs par " + totalPar
+            + " (" + formatRelativeToPar(relativeToPar) + ")."
+                           );
+        updateParAndScoreLabel();
+    }
+
+    private String formatRelativeToPar(final int relativeToPar)
+    {
+        if (relativeToPar == INIT_TO_ZERO_INT)
+        {
+            return "E";
+        }
+
+        if (relativeToPar > INIT_TO_ZERO_INT)
+        {
+            return "+" + relativeToPar;
+        }
+
+        return Integer.toString(relativeToPar);
+    }
+
     private void updateGameState(final double deltaTimeSeconds)
     {
+        if (chargingPower && !golfBall.isMoving())
+        {
+            currentPowerPercentage += POWER_CHARGE_RATE_PERCENT_PER_SECOND * deltaTimeSeconds;
+
+            if (currentPowerPercentage > MAXIMUM_POWER_PERCENTAGE)
+            {
+                currentPowerPercentage = MAXIMUM_POWER_PERCENTAGE;
+            }
+
+            statusLabel.setText("Charging... power " + Math.round(currentPowerPercentage) + "%");
+        }
+
         if (golfBall.isMoving())
         {
-            final TerrainTile currentTerrainTile =
-                golfCourse.getTileAtX(golfBall.getPositionXPixels());
-
-            final double groundCenterYPixels =
-                currentTerrainTile.getGroundCenterYPixels() - golfBall.getRadiusPixels();
-
-            final boolean stillMoving =
-                ProjectilePhysics.updateBallWithTerrain(
-                    golfBall,
-                    currentTerrainTile,
-                    groundCenterYPixels,
-                    deltaTimeSeconds
-                                                       );
-
-            if (!stillMoving)
-            {
-                handleBallStop(currentTerrainTile);
-            }
+            updateMovingBall(deltaTimeSeconds);
         }
 
         updateCamera();
     }
 
+    private void updateMovingBall(final double deltaTimeSeconds)
+    {
+        final TerrainTile terrainTileBeforeUpdate;
+        final double groundCenterYPixels;
+
+        final boolean stillMoving;
+
+        terrainTileBeforeUpdate = golfCourse.getTileAtX(golfBall.getPositionXPixels());
+
+        groundCenterYPixels = terrainTileBeforeUpdate.getGroundCenterYPixels() - golfBall.getRadiusPixels();
+
+        stillMoving = ProjectilePhysics.updateBallWithTerrain(
+            golfBall,
+            terrainTileBeforeUpdate,
+            groundCenterYPixels,
+            deltaTimeSeconds
+                                                             );
+
+        if (ProjectilePhysics.handleAirObstacleCollisions(golfBall, golfCourse.getAirObstacles()))
+        {
+            statusLabel.setText("Ball hit an air obstacle!");
+        }
+
+        final TerrainTile terrainTileAfterUpdate = golfCourse.getTileAtX(golfBall.getPositionXPixels());
+
+        if (handleWaterCollisionIfNeeded(terrainTileAfterUpdate))
+        {
+            return;
+        }
+
+        if (handleOutOfBoundsIfNeeded())
+        {
+            return;
+        }
+
+        if (!stillMoving)
+        {
+            handleBallStop(terrainTileAfterUpdate);
+        }
+    }
+
+    private boolean handleWaterCollisionIfNeeded(final TerrainTile terrainTileAfterUpdate)
+    {
+        if (terrainTileAfterUpdate.getTerrainType() != TerrainType.WATER)
+        {
+            return false;
+        }
+
+        final double waterSurfaceYPixels;
+        final double ballBottomYPixels;
+
+        waterSurfaceYPixels = terrainTileAfterUpdate.getGroundCenterYPixels();
+
+        ballBottomYPixels = golfBall.getPositionYPixels() + golfBall.getRadiusPixels();
+
+        if (ballBottomYPixels < waterSurfaceYPixels)
+        {
+            return false;
+        }
+
+        golfBall.stop();
+        golfBall.resetToSafePosition();
+        statusLabel.setText("Splash! Ball reset to last safe position.");
+        recenterCameraIfBallOffscreen();
+
+        return true;
+    }
+
+    private boolean handleOutOfBoundsIfNeeded()
+    {
+        final TerrainTile lastTerrainTile;
+        final TerrainTile firstTerrainTile;
+
+        final double lastTileEndXPixels;
+        final double firstTileXPixels;
+
+        lastTerrainTile    = golfCourse.getLastTile();
+        firstTerrainTile   = golfCourse.getStartTile();
+        lastTileEndXPixels = lastTerrainTile.getEndXPixels();
+        firstTileXPixels   = firstTerrainTile.getStartXPixels();
+
+        if (golfBall.getPositionXPixels() <= lastTileEndXPixels && golfBall.getPositionXPixels() >= firstTileXPixels)
+        {
+            return false;
+        }
+
+        golfBall.stop();
+        golfBall.resetToSafePosition();
+        statusLabel.setText("Ball went out of bounds past the hole. Reset to last safe position.");
+        recenterCameraIfBallOffscreen();
+
+        return true;
+    }
+
     private void handleBallStop(final TerrainTile currentTerrainTile)
     {
-        final TerrainType terrainType = currentTerrainTile.getTerrainType();
+        final TerrainType terrainType;
+        final TerrainTile lastTerrainTile;
 
-        if (terrainType == TerrainType.WATER)
+        final boolean ballPastEnd;
+
+        terrainType = currentTerrainTile.getTerrainType();
+
+        lastTerrainTile = golfCourse.getLastTile();
+        ballPastEnd     = golfBall.getPositionXPixels() > lastTerrainTile.getEndXPixels();
+
+        if (!ballPastEnd && terrainType != TerrainType.WATER)
         {
-            initializeBallAtTee();
-            statusLabel.setText("Ball rolled into water. Reset to tee.");
+            golfBall.markSafePosition();
         }
-        else if (terrainType == TerrainType.HOLE)
+
+        if (ballPastEnd)
         {
-            statusLabel.setText("Ball in the hole! Strokes: " + strokesTakenCount);
-            updateBestScoreIfNeeded();
+            golfBall.resetToSafePosition();
+            statusLabel.setText("Ball went out of bounds past the hole. Reset to last safe position.");
+        }
+        else if (terrainType == TerrainType.WATER)
+        {
+            golfBall.resetToSafePosition();
+            statusLabel.setText("Ball rolled into water. Reset to last safe position.");
+        }
+        else if (terrainType == TerrainType.HOLE || terrainType == TerrainType.GREEN)
+        {
+            strokesPerHole.set(currentHoleIndex, strokesTakenCount);
+
+            statusLabel.setText(
+                "Hole " + (currentHoleIndex + NEXT_HOLE_INDEX)
+                + " complete in " + strokesTakenCount
+                + " strokes (par " + parForHole + ")."
+                               );
+
+            if (currentHoleIndex + NEXT_HOLE_INDEX < NUMBER_OF_HOLES_PER_ROUND)
+            {
+                startHole(currentHoleIndex + NEXT_HOLE_INDEX);
+            }
+            else
+            {
+                finishRoundAndUpdateHighScore();
+            }
         }
         else if (terrainType == TerrainType.SAND)
         {
@@ -375,40 +849,94 @@ public final class GolfGameInterface
         }
         else
         {
-            statusLabel.setText(
-                "Ball stopped on " + terrainType.name().toLowerCase() + "."
-                               );
+            statusLabel.setText("Ball stopped on " + terrainType.name().toLowerCase() + ".");
         }
     }
 
     private void updateCamera()
     {
-        final double centerThresholdXPixels =
-            CANVAS_WIDTH_PIXELS * CAMERA_CENTER_THRESHOLD_RATIO;
+        final double centerThresholdXPixels;
+        final double relativeBallXPixels;
 
-        final double relativeBallXPixels =
-            golfBall.getPositionXPixels() - cameraOffsetXPixels;
+        centerThresholdXPixels = CANVAS_WIDTH_PIXELS * CAMERA_CENTER_THRESHOLD_RATIO;
+
+        relativeBallXPixels = golfBall.getPositionXPixels() - cameraOffsetXPixels;
 
         if (relativeBallXPixels > centerThresholdXPixels)
         {
             cameraOffsetXPixels = golfBall.getPositionXPixels() - centerThresholdXPixels;
         }
 
-        if (cameraOffsetXPixels < 0.0)
+        if (cameraOffsetXPixels < INIT_TO_ZERO_DOUBLE)
         {
-            cameraOffsetXPixels = 0.0;
+            cameraOffsetXPixels = INIT_TO_ZERO_DOUBLE;
         }
     }
 
-    // -------------------- Rendering --------------------
+    private int computeTotalParUpToCurrentHole()
+    {
+        int totalPar;
+
+        totalPar = 0;
+
+        for (int holeIndex = 0; holeIndex <= currentHoleIndex && holeIndex < parPerHole.size(); holeIndex++)
+        {
+            totalPar += parPerHole.get(holeIndex);
+        }
+
+        return totalPar;
+    }
+
+    private int computeTotalStrokesUpToCurrentHole()
+    {
+        int totalStrokes;
+
+        totalStrokes = INIT_TO_ZERO_INT;
+
+        for (int holeIndex = 0; holeIndex < currentHoleIndex; holeIndex++)
+        {
+            totalStrokes += strokesPerHole.get(holeIndex);
+        }
+
+        totalStrokes += strokesTakenCount;
+
+        return totalStrokes;
+    }
+
+    private void recenterCameraIfBallOffscreen()
+    {
+        final double ballScreenXPixels;
+        final boolean offLeft;
+        final boolean offRight;
+
+        ballScreenXPixels = golfBall.getPositionXPixels() - cameraOffsetXPixels;
+
+        offLeft  = ballScreenXPixels < INIT_TO_ZERO_DOUBLE;
+        offRight = ballScreenXPixels > CANVAS_WIDTH_PIXELS;
+
+        if (offLeft || offRight)
+        {
+            cameraOffsetXPixels = golfBall.getPositionXPixels()
+                                  - (CANVAS_WIDTH_PIXELS * CAMERA_CENTER_THRESHOLD_RATIO);
+
+            if (cameraOffsetXPixels < INIT_TO_ZERO_DOUBLE)
+            {
+                cameraOffsetXPixels = INIT_TO_ZERO_DOUBLE;
+            }
+        }
+    }
 
     private void renderGame()
     {
         graphicsContext.setFill(Color.SKYBLUE);
-        graphicsContext.fillRect(0.0, 0.0, CANVAS_WIDTH_PIXELS, CANVAS_HEIGHT_PIXELS);
+        graphicsContext.fillRect(INIT_TO_ZERO_DOUBLE, INIT_TO_ZERO_DOUBLE, CANVAS_WIDTH_PIXELS, CANVAS_HEIGHT_PIXELS);
 
-        final List<TerrainTile> terrainTiles = golfCourse.getTerrainTiles();
+        final List<TerrainTile> terrainTiles;
+
+        terrainTiles = golfCourse.getTerrainTiles();
+
         terrainTiles.forEach(this::drawTerrainTile);
+        golfCourse.getAirObstacles().forEach(this::drawAirObstacle);
 
         drawBall();
 
@@ -418,16 +946,55 @@ public final class GolfGameInterface
         }
     }
 
+    private void drawAirObstacle(final AirObstacle airObstacle)
+    {
+        final double screenLeftXPixels;
+        final double screenRightXPixels;
+
+        final double obstacleWidthPixels;
+        final double obstacleHeightPixels;
+
+        screenLeftXPixels  = airObstacle.getLeftXPixels() - cameraOffsetXPixels;
+        screenRightXPixels = airObstacle.getRightXPixels() - cameraOffsetXPixels;
+
+        obstacleWidthPixels  = screenRightXPixels - screenLeftXPixels;
+        obstacleHeightPixels = airObstacle.getBottomYPixels() - airObstacle.getTopYPixels();
+
+        if (screenRightXPixels < INIT_TO_ZERO_DOUBLE || screenLeftXPixels > CANVAS_WIDTH_PIXELS)
+        {
+            return;
+        }
+
+        graphicsContext.setFill(Color.DARKGRAY);
+        graphicsContext.fillRect(
+            screenLeftXPixels,
+            airObstacle.getTopYPixels(),
+            obstacleWidthPixels,
+            obstacleHeightPixels
+                                );
+
+        graphicsContext.setStroke(Color.BLACK);
+        graphicsContext.strokeRect(
+            screenLeftXPixels,
+            airObstacle.getTopYPixels(),
+            obstacleWidthPixels,
+            obstacleHeightPixels
+                                  );
+    }
+
     private void drawTerrainTile(final TerrainTile terrainTile)
     {
-        final double screenStartXPixels =
-            terrainTile.getStartXPixels() - cameraOffsetXPixels;
-        final double screenEndXPixels =
-            terrainTile.getEndXPixels() - cameraOffsetXPixels;
-        final double tileWidthOnScreenPixels =
-            screenEndXPixels - screenStartXPixels;
+        final double screenStartXPixels;
+        final double screenEndXPixels;
+        final double tileWidthOnScreenPixels;
 
-        if (screenEndXPixels < 0.0 || screenStartXPixels > CANVAS_WIDTH_PIXELS)
+        final double groundCenterYPixels;
+
+        screenStartXPixels      = terrainTile.getStartXPixels() - cameraOffsetXPixels;
+        screenEndXPixels        = terrainTile.getEndXPixels() - cameraOffsetXPixels;
+        tileWidthOnScreenPixels = screenEndXPixels - screenStartXPixels;
+
+        if (screenEndXPixels < INIT_TO_ZERO_DOUBLE || screenStartXPixels > CANVAS_WIDTH_PIXELS)
         {
             return;
         }
@@ -438,11 +1005,11 @@ public final class GolfGameInterface
             case ROUGH -> graphicsContext.setFill(Color.DARKGREEN);
             case SAND -> graphicsContext.setFill(Color.KHAKI);
             case WATER -> graphicsContext.setFill(Color.DEEPSKYBLUE);
-            case HOLE -> graphicsContext.setFill(Color.DARKGREEN);
+            case HOLE, GREEN -> graphicsContext.setFill(Color.LAWNGREEN);
             default -> graphicsContext.setFill(Color.GRAY);
         }
 
-        final double groundCenterYPixels = terrainTile.getGroundCenterYPixels();
+        groundCenterYPixels = terrainTile.getGroundCenterYPixels();
 
         graphicsContext.fillRect(
             screenStartXPixels,
@@ -461,113 +1028,166 @@ public final class GolfGameInterface
                           final double tileWidthOnScreenPixels,
                           final double groundCenterYPixels)
     {
-        final double flagPoleXPixels = screenStartXPixels + tileWidthOnScreenPixels * 0.5;
-        final double flagTopYPixels = groundCenterYPixels - 40.0;
+        final double flagPoleXPixels;
+        final double flagTopYPixels;
+
+        flagPoleXPixels = screenStartXPixels + tileWidthOnScreenPixels * FLAG_POLE_X_MULTIPLIER;
+        flagTopYPixels  = groundCenterYPixels - FLAG_HEIGHT_PIXELS;
 
         graphicsContext.setStroke(Color.BLACK);
-        graphicsContext.strokeLine(flagPoleXPixels, groundCenterYPixels,
-                                   flagPoleXPixels, flagTopYPixels);
+        graphicsContext.strokeLine(flagPoleXPixels,
+                                   groundCenterYPixels,
+                                   flagPoleXPixels,
+                                   flagTopYPixels);
 
         graphicsContext.setFill(Color.RED);
         graphicsContext.fillPolygon(
-            new double[]{flagPoleXPixels, flagPoleXPixels + 18.0, flagPoleXPixels},
-            new double[]{flagTopYPixels, flagTopYPixels + 8.0, flagTopYPixels + 16.0},
-            3
+            new double[]{
+                flagPoleXPixels,
+                flagPoleXPixels + FLAG_TRIANGLE_OFFSET_X_PIXELS,
+                flagPoleXPixels
+            },
+            new double[]{
+                flagTopYPixels,
+                flagTopYPixels + FLAG_TRIANGLE_OFFSET_Y_SMALL_PIXELS,
+                flagTopYPixels + FLAG_TRIANGLE_OFFSET_Y_LARGE_PIXELS
+            },
+            POLYGON_FILL
                                    );
     }
 
     private void drawBall()
     {
-        final double screenBallXPixels =
-            golfBall.getPositionXPixels() - cameraOffsetXPixels;
+        final double screenBallXPixels;
+
+        screenBallXPixels = golfBall.getPositionXPixels() - cameraOffsetXPixels;
 
         graphicsContext.setFill(Color.WHITE);
         graphicsContext.fillOval(
             screenBallXPixels - BALL_RADIUS_PIXELS,
             golfBall.getPositionYPixels() - BALL_RADIUS_PIXELS,
-            BALL_RADIUS_PIXELS * 2.0,
-            BALL_RADIUS_PIXELS * 2.0
+            BALL_RADIUS_PIXELS * BALL_RADIUS_MULTIPLIER,
+            BALL_RADIUS_PIXELS * BALL_RADIUS_MULTIPLIER
                                 );
 
         graphicsContext.setStroke(Color.BLACK);
         graphicsContext.strokeOval(
             screenBallXPixels - BALL_RADIUS_PIXELS,
             golfBall.getPositionYPixels() - BALL_RADIUS_PIXELS,
-            BALL_RADIUS_PIXELS * 2.0,
-            BALL_RADIUS_PIXELS * 2.0
+            BALL_RADIUS_PIXELS * BALL_RADIUS_MULTIPLIER,
+            BALL_RADIUS_PIXELS * BALL_RADIUS_MULTIPLIER
                                   );
     }
 
     private void drawAimArrow()
     {
-        final double baseArrowXPixels =
-            golfBall.getPositionXPixels() - cameraOffsetXPixels;
-        final double baseArrowYPixels =
-            golfBall.getPositionYPixels();
+        final double baseArrowXPixels;
+        final double baseArrowYPixels;
 
-        final double launchAngleDegrees = launchAngleSlider.getValue();
-        final double launchAngleRadians = Math.toRadians(launchAngleDegrees);
+        final double launchAngleRadians;
 
-        final double normalizedPower =
-            shotPowerSlider.getValue() / MAXIMUM_POWER_PERCENTAGE;
+        final double normalizedPower;
+        final double arrowLengthPixels;
 
-        final double arrowLengthPixels =
-            AIM_ARROW_BASE_LENGTH_PIXELS
-            + AIM_ARROW_EXTRA_LENGTH_PIXELS * normalizedPower;
+        final double arrowEndXPixels;
+        final double arrowEndYPixels;
 
-        final double arrowEndXPixels =
-            baseArrowXPixels + arrowLengthPixels * Math.cos(launchAngleRadians);
-        final double arrowEndYPixels =
-            baseArrowYPixels - arrowLengthPixels * Math.sin(launchAngleRadians);
+        final double arrowHeadAngleOffsetRadians;
+        final double leftHeadAngleRadians;
+        final double rightHeadAngleRadians;
+
+        final double leftHeadXPixels;
+        final double leftHeadYPixels;
+
+        final double rightHeadXPixels;
+        final double rightHeadYPixels;
+
+        baseArrowXPixels = golfBall.getPositionXPixels() - cameraOffsetXPixels;
+        baseArrowYPixels = golfBall.getPositionYPixels();
+
+        launchAngleRadians = Math.toRadians(currentAimAngleDegrees);
+
+        normalizedPower = currentPowerPercentage / MAXIMUM_POWER_PERCENTAGE;
+
+        arrowLengthPixels = AIM_ARROW_BASE_LENGTH_PIXELS + AIM_ARROW_EXTRA_LENGTH_PIXELS * normalizedPower;
+
+        arrowEndXPixels = baseArrowXPixels + arrowLengthPixels * Math.cos(launchAngleRadians);
+        arrowEndYPixels = baseArrowYPixels - arrowLengthPixels * Math.sin(launchAngleRadians);
 
         graphicsContext.setStroke(Color.BLACK);
-        graphicsContext.setLineWidth(2.0);
+        graphicsContext.setLineWidth(ARROW_LINE_WIDTH_PIXELS);
         graphicsContext.strokeLine(
-            baseArrowXPixels, baseArrowYPixels,
-            arrowEndXPixels, arrowEndYPixels
+            baseArrowXPixels,
+            baseArrowYPixels,
+            arrowEndXPixels,
+            arrowEndYPixels
                                   );
 
-        final double arrowHeadAngleOffsetRadians =
-            Math.toRadians(AIM_ARROW_HEAD_ANGLE_DEGREES);
+        arrowHeadAngleOffsetRadians = Math.toRadians(AIM_ARROW_HEAD_ANGLE_DEGREES);
 
-        final double leftHeadAngleRadians = launchAngleRadians + arrowHeadAngleOffsetRadians;
-        final double rightHeadAngleRadians = launchAngleRadians - arrowHeadAngleOffsetRadians;
+        leftHeadAngleRadians  = launchAngleRadians + arrowHeadAngleOffsetRadians;
+        rightHeadAngleRadians = launchAngleRadians - arrowHeadAngleOffsetRadians;
 
-        final double leftHeadXPixels =
-            arrowEndXPixels + AIM_ARROW_HEAD_LENGTH_PIXELS * Math.cos(leftHeadAngleRadians);
-        final double leftHeadYPixels =
-            arrowEndYPixels - AIM_ARROW_HEAD_LENGTH_PIXELS * Math.sin(leftHeadAngleRadians);
+        leftHeadXPixels = arrowEndXPixels + AIM_ARROW_HEAD_LENGTH_PIXELS * Math.cos(leftHeadAngleRadians);
+        leftHeadYPixels = arrowEndYPixels - AIM_ARROW_HEAD_LENGTH_PIXELS * Math.sin(leftHeadAngleRadians);
 
-        final double rightHeadXPixels =
-            arrowEndXPixels + AIM_ARROW_HEAD_LENGTH_PIXELS * Math.cos(rightHeadAngleRadians);
-        final double rightHeadYPixels =
-            arrowEndYPixels - AIM_ARROW_HEAD_LENGTH_PIXELS * Math.sin(rightHeadAngleRadians);
+        rightHeadXPixels = arrowEndXPixels + AIM_ARROW_HEAD_LENGTH_PIXELS * Math.cos(rightHeadAngleRadians);
+        rightHeadYPixels = arrowEndYPixels - AIM_ARROW_HEAD_LENGTH_PIXELS * Math.sin(rightHeadAngleRadians);
 
-        graphicsContext.strokeLine(arrowEndXPixels, arrowEndYPixels,
-                                   leftHeadXPixels, leftHeadYPixels);
-        graphicsContext.strokeLine(arrowEndXPixels, arrowEndYPixels,
-                                   rightHeadXPixels, rightHeadYPixels);
+        graphicsContext.strokeLine(arrowEndXPixels,
+                                   arrowEndYPixels,
+                                   leftHeadXPixels,
+                                   leftHeadYPixels);
+
+        graphicsContext.strokeLine(arrowEndXPixels,
+                                   arrowEndYPixels,
+                                   rightHeadXPixels,
+                                   rightHeadYPixels);
     }
-
-    // -------------------- Scoring / persistence --------------------
 
     private String buildParAndScoreText()
     {
-        final String bestScoreText =
-            (bestScoreFromFile == null)
-                ? "No best score yet"
-                : "Best: " + bestScoreFromFile;
+        final String bestRoundText;
+        final long sandTileCount;
 
-        final long sandTileCount =
-            golfCourse.getTerrainTiles().stream()
-                      .filter(tile -> tile.getTerrainType() == TerrainType.SAND)
-                      .count();
+        final String sandSummary;
+        final String holeLabel;
 
-        final String sandSummary = "Sand tiles: " + sandTileCount;
+        final int totalParSoFar;
+        final int totalStrokesSoFar;
+        final int relativeToParSoFar;
 
-        return "Par: " + parForHole
-               + " | Strokes: " + strokesTakenCount
-               + " | " + bestScoreText
+        final String roundScoreSummary;
+
+        if (bestRoundRelativeToPar == null)
+        {
+            bestRoundText = "Best round: none";
+        }
+        else
+        {
+            bestRoundText = "Best round: " + formatRelativeToPar(bestRoundRelativeToPar);
+        }
+
+        sandTileCount = golfCourse.getTerrainTiles().stream()
+                                  .filter(tile -> tile.getTerrainType() == TerrainType.SAND)
+                                  .count();
+
+        sandSummary = "Sand tiles: " + sandTileCount;
+
+        holeLabel = "Hole " + (currentHoleIndex + NEXT_HOLE_INDEX) + "/" + NUMBER_OF_HOLES_PER_ROUND;
+
+        totalParSoFar      = computeTotalParUpToCurrentHole();
+        totalStrokesSoFar  = computeTotalStrokesUpToCurrentHole();
+        relativeToParSoFar = totalStrokesSoFar - totalParSoFar;
+
+        roundScoreSummary = "Round: " + totalStrokesSoFar + "/" + totalParSoFar
+                            + " (" + formatRelativeToPar(relativeToParSoFar) + ")";
+
+        return holeLabel
+               + " | Par: " + parForHole
+               + " | Strokes this hole: " + strokesTakenCount
+               + " | " + roundScoreSummary
+               + " | " + bestRoundText
                + " | " + sandSummary;
     }
 
@@ -577,21 +1197,5 @@ public final class GolfGameInterface
         {
             parAndScoreLabel.setText(buildParAndScoreText());
         }
-    }
-
-    private void loadBestScoreFromFile()
-    {
-        bestScoreFromFile = HighScoreStorage.loadBestScore();
-    }
-
-    private void updateBestScoreIfNeeded()
-    {
-        if (bestScoreFromFile == null || strokesTakenCount < bestScoreFromFile)
-        {
-            bestScoreFromFile = strokesTakenCount;
-            HighScoreStorage.saveBestScore(bestScoreFromFile, statusLabel);
-        }
-
-        updateParAndScoreLabel();
     }
 }

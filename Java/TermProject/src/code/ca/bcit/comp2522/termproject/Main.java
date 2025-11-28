@@ -7,29 +7,77 @@ import java.util.concurrent.CountDownLatch;
 
 /**
  * Entry point for running multiple games through a text-based menu.
+ *
+ * <p>This class presents a simple console menu that lets the user choose
+ * between different games, including a JavaFX-based golf game and number game.
+ * It keeps the JavaFX runtime alive across multiple game launches.</p>
+ *
+ * @author Taylor
+ * @version 1.0
  */
 public final class Main
 {
     // -------------------- Constants --------------------
 
-    private static final char WORD_GAME_OPTION_CHAR   = 'W';
-    private static final char NUMBER_GAME_OPTION_CHAR = 'N';
-    private static final char CUSTOM_GAME_OPTION_CHAR = 'G'; // G for Golf
-    private static final char QUIT_OPTION_CHAR        = 'Q';
+    /**
+     * Menu option character for the word game.
+     */
+    private static final char WORD_GAME_OPTION_CHAR = 'W';
 
-    private static final String MENU_TEXT_WORD_GAME   =
+    /**
+     * Menu option character for the number game.
+     */
+    private static final char NUMBER_GAME_OPTION_CHAR = 'N';
+
+    /**
+     * Menu option character for the golf game.
+     */
+    private static final char CUSTOM_GAME_OPTION_CHAR = 'G';
+
+    /**
+     * Menu option character to quit the program.
+     */
+    private static final char QUIT_OPTION_CHAR = 'Q';
+
+    /**
+     * Text prompt for the word game menu option.
+     */
+    private static final String MENU_TEXT_WORD_GAME =
         "Press W to play the Word game.";
+
+    /**
+     * Text prompt for the number game menu option.
+     */
     private static final String MENU_TEXT_NUMBER_GAME =
         "Press N to play the Number game.";
+
+    /**
+     * Text prompt for the golf game menu option.
+     */
     private static final String MENU_TEXT_CUSTOM_GAME =
         "Press G to play the Golf game.";
-    private static final String MENU_TEXT_QUIT        =
+
+    /**
+     * Text prompt for the quit menu option.
+     */
+    private static final String MENU_TEXT_QUIT =
         "Press Q to quit.";
+
+    /**
+     * Initial count used for the latch that tracks when a game finishes.
+     */
+    private static final int INITIAL_GAME_FINISHED_LATCH_COUNT = 1;
 
     // -------------------- JavaFX State --------------------
 
+    /**
+     * Tracks whether the JavaFX platform has already been started.
+     */
     private static boolean javafxStarted = false;
 
+    /**
+     * Private constructor to prevent instantiation.
+     */
     private Main()
     {
         // Prevent instantiation.
@@ -37,10 +85,13 @@ public final class Main
 
     /**
      * Drives the game selector loop.
+     *
+     * @param args command line arguments (not used)
      */
     public static void main(final String[] args)
     {
-        final Scanner userInputScanner = new Scanner(System.in);
+        final Scanner userInputScanner;
+        userInputScanner = new Scanner(System.in);
 
         while (true)
         {
@@ -49,28 +100,32 @@ public final class Main
             System.out.println(MENU_TEXT_CUSTOM_GAME);
             System.out.println(MENU_TEXT_QUIT);
 
-            final String rawInput = userInputScanner.nextLine().trim().toUpperCase();
+            final String rawInput;
+            rawInput = userInputScanner.nextLine().trim().toUpperCase();
 
             if (rawInput.isEmpty())
             {
                 continue;
             }
 
-            final char menuSelectionCharacter = rawInput.charAt(0);
+            final char menuSelectionCharacter;
+            menuSelectionCharacter = rawInput.charAt(0);
 
             if (menuSelectionCharacter == WORD_GAME_OPTION_CHAR)
             {
-                final WordGame wordGame = new WordGame(userInputScanner);
+                final WordGame wordGame;
+                wordGame = new WordGame(userInputScanner);
                 wordGame.playWordGame();
             }
             else if (menuSelectionCharacter == NUMBER_GAME_OPTION_CHAR)
             {
-                final CountDownLatch gameFinishedLatch = new CountDownLatch(1);
+                final CountDownLatch gameFinishedLatch;
+                gameFinishedLatch = new CountDownLatch(INITIAL_GAME_FINISHED_LATCH_COUNT);
 
                 openJavaFxGameWindow(() ->
                                      {
-                                         final NumberGameInterface numberGameInterface =
-                                             new NumberGameInterface(gameFinishedLatch);
+                                         final NumberGameInterface numberGameInterface;
+                                         numberGameInterface = new NumberGameInterface(gameFinishedLatch);
                                          numberGameInterface.openInNewStage();
                                      });
 
@@ -78,12 +133,13 @@ public final class Main
             }
             else if (menuSelectionCharacter == CUSTOM_GAME_OPTION_CHAR)
             {
-                final CountDownLatch gameFinishedLatch = new CountDownLatch(1);
+                final CountDownLatch gameFinishedLatch;
+                gameFinishedLatch = new CountDownLatch(INITIAL_GAME_FINISHED_LATCH_COUNT);
 
                 openJavaFxGameWindow(() ->
                                      {
-                                         final GolfGameInterface golfGameInterface =
-                                             new GolfGameInterface(gameFinishedLatch);
+                                         final GolfGameInterface golfGameInterface;
+                                         golfGameInterface = new GolfGameInterface(gameFinishedLatch);
                                          golfGameInterface.openInNewStage();
                                      });
 
@@ -103,8 +159,13 @@ public final class Main
     }
 
     /**
-     * Uses a lambda (week 6) to open any JavaFX game window.
-     * Reuses a single JavaFX runtime (Platform.startup only once).
+     * Uses a lambda to open any JavaFX game window.
+     * <p>
+     * This method ensures that the JavaFX platform is started only once and
+     * then reused for subsequent game windows.
+     * </p>
+     *
+     * @param gameWindowCreator runnable that creates and opens the game window
      */
     private static void openJavaFxGameWindow(final Runnable gameWindowCreator)
     {
@@ -124,6 +185,11 @@ public final class Main
         }
     }
 
+    /**
+     * Blocks the current thread until the provided latch reaches zero.
+     *
+     * @param gameFinishedLatch latch that is counted down when the game finishes
+     */
     private static void awaitLatch(final CountDownLatch gameFinishedLatch)
     {
         try

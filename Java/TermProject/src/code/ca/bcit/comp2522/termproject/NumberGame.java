@@ -11,49 +11,38 @@ import java.util.Random;
  * statistics tracking (wins, losses, placements), and game lifecycle events.
  * Concrete subclasses must provide UI-specific behavior for state changes and messages.
  *
- * @author Taylor Hillier
+ * @author Taylor
  * @version 1.0
  */
 public abstract class NumberGame implements NumberGridGame
 {
     // -------------------- Game Configuration Constants --------------------
 
-    /**
-     * Fixed number of cells in the board.
-     */
     private static final int BOARD_SIZE_CELLS = 20;
 
-    /**
-     * Value used to represent an empty cell.
-     */
     private static final int EMPTY_CELL_VALUE = 0;
 
-    /**
-     * Minimum possible random number (inclusive).
-     */
     private static final int RANDOM_NUMBER_MIN_INCLUSIVE = 1;
 
-    /**
-     * Maximum possible random number (inclusive).
-     */
     private static final int RANDOM_NUMBER_MAX_INCLUSIVE = 1000;
 
-    /**
-     * Upper bound passed into {@link Random#nextInt(int)} (exclusive).
-     */
     private static final int RANDOM_NUMBER_UPPER_BOUND_EXCLUSIVE =
         RANDOM_NUMBER_MAX_INCLUSIVE;
 
-    /**
-     * Sentinel value representing "no left bound" when scanning left.
-     */
     private static final int LEFT_BOUND_SENTINEL_VALUE = -1;
 
-    /**
-     * Sentinel value representing "no right bound" when scanning right.
-     */
     private static final int RIGHT_BOUND_SENTINEL_VALUE =
         RANDOM_NUMBER_MAX_INCLUSIVE + 1;
+
+    private static final int EMPTY_INT_ARRAY_LENGTH_ELEMENTS = 0;
+
+    private static final int DEFAULT_MIN_VALID_CELL_INDEX = 0;
+
+    private static final int LAST_CELL_INDEX_OFFSET = 1;
+
+    private static final int NO_GAMES_PLAYED_COUNT = 0;
+
+    private static final double NO_AVERAGE_PLACEMENTS_PER_GAME = 0.0;
 
     // -------------------- Instance Fields --------------------
 
@@ -84,7 +73,7 @@ public abstract class NumberGame implements NumberGridGame
 
         Arrays.fill(board, EMPTY_CELL_VALUE);
 
-        validCells = new int[0];
+        validCells = new int[EMPTY_INT_ARRAY_LENGTH_ELEMENTS];
 
         gameOver = false;
         gameLost = false;
@@ -131,7 +120,7 @@ public abstract class NumberGame implements NumberGridGame
     {
         if (validCells == null)
         {
-            return new int[0];
+            return new int[EMPTY_INT_ARRAY_LENGTH_ELEMENTS];
         }
         else
         {
@@ -218,9 +207,9 @@ public abstract class NumberGame implements NumberGridGame
      */
     public double getAveragePlacementsPerGame()
     {
-        if (totalGamesPlayed == 0)
+        if (totalGamesPlayed == NO_GAMES_PLAYED_COUNT)
         {
-            return 0.0;
+            return NO_AVERAGE_PLACEMENTS_PER_GAME;
         }
 
         return (double) totalSuccessfulPlacements / totalGamesPlayed;
@@ -253,7 +242,8 @@ public abstract class NumberGame implements NumberGridGame
                 continue;
             }
 
-            int leftValue = LEFT_BOUND_SENTINEL_VALUE;
+            int leftValue;
+            leftValue = LEFT_BOUND_SENTINEL_VALUE;
 
             for (int leftScanIndex = currentCellIndex - 1; leftScanIndex >= 0; leftScanIndex--)
             {
@@ -264,9 +254,11 @@ public abstract class NumberGame implements NumberGridGame
                 }
             }
 
-            int rightValue = RIGHT_BOUND_SENTINEL_VALUE;
+            int rightValue;
+            rightValue = RIGHT_BOUND_SENTINEL_VALUE;
 
-            for (int rightScanIndex = currentCellIndex + 1; rightScanIndex < currentBoard.length; rightScanIndex++)
+            for (int rightScanIndex = currentCellIndex + 1; rightScanIndex < currentBoard.length;
+                 rightScanIndex++)
             {
                 if (currentBoard[rightScanIndex] != EMPTY_CELL_VALUE)
                 {
@@ -293,7 +285,7 @@ public abstract class NumberGame implements NumberGridGame
      */
     public boolean checkValidMove(final int cellIndex)
     {
-        if (validCells == null || validCells.length == 0)
+        if (validCells == null || validCells.length == EMPTY_INT_ARRAY_LENGTH_ELEMENTS)
         {
             gameOver = true;
             gameLost = true;
@@ -303,10 +295,15 @@ public abstract class NumberGame implements NumberGridGame
             return false;
         }
 
-        final int minimumValidIndex = Arrays.stream(validCells).min().orElse(0);
-        final int maximumValidIndex = Arrays.stream(validCells)
-                                            .max()
-                                            .orElse(board.length - 1);
+        final int minimumValidIndex;
+        minimumValidIndex = Arrays.stream(validCells)
+                                  .min()
+                                  .orElse(DEFAULT_MIN_VALID_CELL_INDEX);
+
+        final int maximumValidIndex;
+        maximumValidIndex = Arrays.stream(validCells)
+                                  .max()
+                                  .orElse(board.length - LAST_CELL_INDEX_OFFSET);
 
         if (cellIndex < minimumValidIndex)
         {
@@ -320,8 +317,8 @@ public abstract class NumberGame implements NumberGridGame
             return false;
         }
 
-        final boolean isValidCell =
-            Arrays.stream(validCells).anyMatch(validIndex -> validIndex == cellIndex);
+        final boolean isValidCell;
+        isValidCell = Arrays.stream(validCells).anyMatch(validIndex -> validIndex == cellIndex);
 
         if (!isValidCell)
         {
@@ -345,7 +342,8 @@ public abstract class NumberGame implements NumberGridGame
             return;
         }
 
-        final boolean isMoveValid = checkValidMove(cellIndex);
+        final boolean isMoveValid;
+        isMoveValid = checkValidMove(cellIndex);
 
         if (!isMoveValid)
         {
@@ -393,7 +391,8 @@ public abstract class NumberGame implements NumberGridGame
 
         totalGamesPlayed++;
 
-        final double averagePlacementsPerGame =
+        final double averagePlacementsPerGame;
+        averagePlacementsPerGame =
             (double) totalSuccessfulPlacements / totalGamesPlayed;
 
         endCurrentGame(isLoss,

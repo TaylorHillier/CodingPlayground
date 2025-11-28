@@ -1,22 +1,27 @@
 package ca.bcit.comp2522.termproject;
 
 /**
- * Abstract base for golf club implementations. Provides a common
- * distance calculation and delegates fine tuning to subclasses.
+ * Abstract base for golf club implementations.
+ * Provides shared distance computation logic
+ * and delegates club-specific adjustment to subclasses.
+ * <p>
  *
  * @author Taylor
  * @version 1.0
  */
 public abstract class AbstractGolfClub implements GolfClub
 {
+    private static final double PERCENT_TO_DECIMAL_DIVISOR = 100.0;
+
     private final String displayName;
+
     private final double baseDistancePixels;
 
     /**
-     * Constructs an AbstractGolfClub.
+     * Constructs an AbstractGolfClub with a display name and base travel distance.
      *
-     * @param displayName        name shown to the player
-     * @param baseDistancePixels base flat-ground distance in pixels at 100% power
+     * @param displayName        human-readable name shown on UI
+     * @param baseDistancePixels base distance in pixels at full power
      */
     protected AbstractGolfClub(final String displayName,
                                final double baseDistancePixels)
@@ -25,32 +30,62 @@ public abstract class AbstractGolfClub implements GolfClub
         this.baseDistancePixels = baseDistancePixels;
     }
 
+    /**
+     * Returns the display name of the club.
+     *
+     * @return display name string
+     */
     @Override
-    public String getDisplayName()
+    public final String getDisplayName()
     {
         return displayName;
     }
 
+    /**
+     * Computes expected horizontal distance for this club given the shot context.
+     * The steps are:
+     * <ol>
+     *     <li>Convert power percentage to a decimal multiplier.</li>
+     *     <li>Multiply by terrain distance multiplier.</li>
+     *     <li>Apply subclass-specific adjustment.</li>
+     * </ol>
+     *
+     * @param shotContext description of power and terrain characteristics
+     * @return a {@link ShotResult} containing the adjusted expected distance in pixels
+     */
     @Override
-    public ShotResult computeShot(final ShotContext shotContext)
+    public final ShotResult computeShot(final ShotContext shotContext)
     {
-        final double powerMultiplier = shotContext.getPowerPercentage() / 100.0;
-        final double terrainMultiplier = shotContext.getTerrainDistanceMultiplier();
+        final double powerMultiplier;
+        final double terrainDistanceMultiplier;
+        final double rawDistancePixels;
+        final double adjustedDistancePixels;
+        final ShotResult shotResult;
 
-        final double rawDistancePixels =
-            baseDistancePixels * powerMultiplier * terrainMultiplier;
 
-        final double adjustedDistancePixels = adjustDistanceForClub(rawDistancePixels, shotContext);
+        powerMultiplier =
+            shotContext.getPowerPercentage() / PERCENT_TO_DECIMAL_DIVISOR;
 
-        return new ShotResult(adjustedDistancePixels);
+        terrainDistanceMultiplier =
+            shotContext.getTerrainDistanceMultiplier();
+
+        rawDistancePixels =
+            baseDistancePixels * powerMultiplier * terrainDistanceMultiplier;
+
+        adjustedDistancePixels =
+            adjustDistanceForClub(rawDistancePixels, shotContext);
+
+        shotResult = new ShotResult(adjustedDistancePixels);
+
+        return shotResult;
     }
 
     /**
-     * Template method allowing subclasses to fine-tune the raw distance for this club.
+     * Allows subclasses to fine-tune the computed distance.
      *
-     * @param rawDistancePixels raw distance in pixels
-     * @param shotContext       context describing this shot
-     * @return adjusted distance
+     * @param rawDistancePixels base computed distance in pixels
+     * @param shotContext       description of the current shot
+     * @return adjusted distance in pixels
      */
     protected abstract double adjustDistanceForClub(final double rawDistancePixels,
                                                     final ShotContext shotContext);

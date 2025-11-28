@@ -1,0 +1,15 @@
+Date and Time: 2025-11-28 14:01:36
+Games played: 2
+Correct First Attempts: 0
+Correct second attempts: 2
+Incorrect attempts: 4
+Total score: 2
+
+Date and Time: 2025-11-28 14:00:04
+Games played: 1
+Correct First Attempts: 0
+Correct second attempts: 0
+Incorrect attempts: 3
+Total score: 0
+
+2025-11-28 14:23:16,1,3,2,5

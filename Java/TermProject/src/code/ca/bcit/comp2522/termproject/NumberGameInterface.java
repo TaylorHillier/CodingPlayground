@@ -18,7 +18,7 @@ import java.util.concurrent.CountDownLatch;
  * This class creates and manages a separate window that displays the game board
  * and the current number, and delegates user interactions to the underlying game logic.
  *
- * @author Taylor Hillier
+ * @author Taylor
  * @version 1.0
  */
 public final class NumberGameInterface
@@ -58,6 +58,30 @@ public final class NumberGameInterface
     private static final String GAME_OVER_DIALOG_TRY_AGAIN_TEXT = "Try Again";
     private static final String GAME_OVER_DIALOG_QUIT_TEXT      = "Quit";
 
+    // -------------------- Score / Dialog Text Constants --------------------
+
+    private static final int NO_GAMES_PLAYED_COUNT    = 0;
+    private static final int SINGLE_GAME_PLAYED_COUNT = 1;
+
+    private static final String SCORE_SUMMARY_NO_GAMES_TEXT      = "No games played yet.";
+    private static final String SCORE_SUMMARY_GAME_WORD_SINGULAR = "game";
+    private static final String SCORE_SUMMARY_GAME_WORD_PLURAL   = "games";
+
+    private static final String SCORE_SUMMARY_LOSS_FORMAT =
+        "You lost %d out of %d %s, with %d successful placements, an average of %.2f per game";
+
+    private static final String SCORE_SUMMARY_WIN_FORMAT =
+        "You won %d out of %d %s, with %d successful placements, an average of %.2f per game";
+
+    private static final String SCORE_SUMMARY_MIXED_FORMAT =
+        "You won %d out of %d %s and you lost %d out of %d %s, with %d successful placements, an average of %.2f per " +
+        "game";
+
+    private static final String HINT_DIALOG_TITLE_TEXT = "Hint";
+
+    private static final String LOSS_RESULT_MESSAGE_TEXT = "You lost!";
+    private static final String WIN_RESULT_MESSAGE_TEXT  = "You won!";
+
     // -------------------- Instance Fields --------------------
 
     private final Button[] cellButtons;
@@ -85,7 +109,8 @@ public final class NumberGameInterface
      */
     public void openInNewStage()
     {
-        final Stage gameStage = new Stage();
+        final Stage gameStage;
+        gameStage = new Stage();
 
         gameStage.setOnCloseRequest(_ ->
                                     {
@@ -100,36 +125,52 @@ public final class NumberGameInterface
 
     private void buildUI(final Stage primaryStage)
     {
-        final HBox currentNumberContainer = new HBox(HBOX_SPACING_PIXELS);
-        final Label currentNumberLabel = new Label(CURRENT_NUMBER_LABEL_TEXT);
+        final HBox currentNumberContainer;
+        currentNumberContainer = new HBox(HBOX_SPACING_PIXELS);
+
+        final Label currentNumberLabel;
+        currentNumberLabel = new Label(CURRENT_NUMBER_LABEL_TEXT);
 
         currentNumberDisplay.setText(INITIAL_CURRENT_NUMBER_TEXT);
 
         currentNumberContainer.getChildren().addAll(currentNumberLabel, currentNumberDisplay);
 
-        final GridPane gameGrid = new GridPane();
+        final GridPane gameGrid;
+        gameGrid = new GridPane();
         gameGrid.setHgap(GRID_HORIZONTAL_GAP_PIXELS);
         gameGrid.setVgap(GRID_VERTICAL_GAP_PIXELS);
 
-        for (int currentCellIndex = 0; currentCellIndex < NUMBER_GAME_TOTAL_CELLS; currentCellIndex++)
+        for (int currentCellIndex = 0;
+             currentCellIndex < NUMBER_GAME_TOTAL_CELLS;
+             currentCellIndex++)
         {
-            final Button cellButton = new Button(EMPTY_CELL_DISPLAY_TEXT);
+            final Button cellButton;
+            cellButton = new Button(EMPTY_CELL_DISPLAY_TEXT);
             cellButton.setMinSize(CELL_BUTTON_MIN_WIDTH_PIXELS, CELL_BUTTON_MIN_HEIGHT_PIXELS);
 
-            final int capturedCellIndex = currentCellIndex;
-            cellButton.setOnAction(actionEvent -> gameLogic.handleCellClick(capturedCellIndex));
+            final int capturedCellIndex;
+            capturedCellIndex = currentCellIndex;
 
-            final int rowIndex = currentCellIndex / NUMBER_GAME_COLUMNS_PER_ROW;
-            final int columnIndex = currentCellIndex % NUMBER_GAME_COLUMNS_PER_ROW;
+            cellButton.setOnAction(_ ->
+                                       gameLogic.handleCellClick(capturedCellIndex));
+
+            final int rowIndex;
+            rowIndex = currentCellIndex / NUMBER_GAME_COLUMNS_PER_ROW;
+
+            final int columnIndex;
+            columnIndex = currentCellIndex % NUMBER_GAME_COLUMNS_PER_ROW;
 
             gameGrid.add(cellButton, columnIndex, rowIndex);
             cellButtons[currentCellIndex] = cellButton;
         }
 
-        final VBox rootLayout = new VBox(VBOX_SPACING_PIXELS);
+        final VBox rootLayout;
+        rootLayout = new VBox(VBOX_SPACING_PIXELS);
         rootLayout.getChildren().addAll(currentNumberContainer, gameGrid);
 
-        final Scene scene = new Scene(rootLayout, SCENE_WIDTH_PIXELS, SCENE_HEIGHT_PIXELS);
+        final Scene scene;
+        scene = new Scene(rootLayout, SCENE_WIDTH_PIXELS, SCENE_HEIGHT_PIXELS);
+
         primaryStage.setScene(scene);
         primaryStage.setTitle(GAME_WINDOW_TITLE_TEXT);
 
@@ -140,6 +181,7 @@ public final class NumberGameInterface
 
     private final NumberGame gameLogic = new NumberGame()
     {
+
         private int    statsTotalGamesPlayed;
         private int    statsTotalGamesLost;
         private int    statsTotalGamesWon;
@@ -154,11 +196,13 @@ public final class NumberGameInterface
         @Override
         protected void onStateChanged()
         {
-            final int[] boardSnapshot = getBoard();
+            final int[] boardSnapshot;
+            boardSnapshot = getBoard();
 
             reRenderGrid(boardSnapshot);
 
-            final int[] validCellsForCurrentTurn = getValidSpotsForTurn(getCurrentNumber());
+            final int[] validCellsForCurrentTurn;
+            validCellsForCurrentTurn = getValidSpotsForTurn(getCurrentNumber());
             setValidCells(validCellsForCurrentTurn);
 
             if (validCellsForCurrentTurn.length == 0 && !isGameOver())
@@ -199,8 +243,11 @@ public final class NumberGameInterface
             statsTotalSuccessfulPlacements = getTotalSuccessfulPlacements();
             statsAveragePlacementsPerGame  = getAveragePlacementsPerGame();
 
-            final String resultMessage = isLoss ? "You lost!" : "You won!";
-            final String scoreSummary = buildScoreSummary();
+            final String resultMessage;
+            resultMessage = isLoss ? LOSS_RESULT_MESSAGE_TEXT : WIN_RESULT_MESSAGE_TEXT;
+
+            final String scoreSummary;
+            scoreSummary = buildScoreSummary();
 
             System.out.println(resultMessage);
             System.out.println(scoreSummary);
@@ -208,17 +255,21 @@ public final class NumberGameInterface
 
         private String buildScoreSummary()
         {
-            if (statsTotalGamesPlayed == 0)
+            if (statsTotalGamesPlayed == NO_GAMES_PLAYED_COUNT)
             {
-                return "No games played yet.";
+                return SCORE_SUMMARY_NO_GAMES_TEXT;
             }
 
-            final String gameWord = (statsTotalGamesPlayed == 1) ? "game" : "games";
+            final String gameWord;
+            gameWord =
+                (statsTotalGamesPlayed == SINGLE_GAME_PLAYED_COUNT)
+                    ? SCORE_SUMMARY_GAME_WORD_SINGULAR
+                    : SCORE_SUMMARY_GAME_WORD_PLURAL;
 
             if (statsTotalGamesLost == statsTotalGamesPlayed)
             {
                 return String.format(
-                    "You lost %d out of %d %s, with %d successful placements, an average of %.2f per game",
+                    SCORE_SUMMARY_LOSS_FORMAT,
                     statsTotalGamesLost,
                     statsTotalGamesPlayed,
                     gameWord,
@@ -230,7 +281,7 @@ public final class NumberGameInterface
             if (statsTotalGamesWon == statsTotalGamesPlayed)
             {
                 return String.format(
-                    "You won %d out of %d %s, with %d successful placements, an average of %.2f per game",
+                    SCORE_SUMMARY_WIN_FORMAT,
                     statsTotalGamesWon,
                     statsTotalGamesPlayed,
                     gameWord,
@@ -240,8 +291,7 @@ public final class NumberGameInterface
             }
 
             return String.format(
-                "You won %d out of %d %s and you lost %d out of %d %s, with %d successful placements, an average of "
-                + "%.2f per game",
+                SCORE_SUMMARY_MIXED_FORMAT,
                 statsTotalGamesWon,
                 statsTotalGamesPlayed,
                 gameWord,
@@ -261,8 +311,10 @@ public final class NumberGameInterface
         @Override
         public void showGuidanceMessage(final String message)
         {
-            final Alert alert = new Alert(Alert.AlertType.INFORMATION);
-            alert.setTitle("Hint");
+            final Alert alert;
+            alert = new Alert(Alert.AlertType.INFORMATION);
+
+            alert.setTitle(HINT_DIALOG_TITLE_TEXT);
             alert.setHeaderText(null);
             alert.setContentText(message);
             alert.showAndWait();
@@ -275,7 +327,9 @@ public final class NumberGameInterface
         @Override
         public void showGameOverMessage()
         {
-            final Alert alert = new Alert(Alert.AlertType.CONFIRMATION);
+            final Alert alert;
+            alert = new Alert(Alert.AlertType.CONFIRMATION);
+
             alert.setTitle(GAME_OVER_DIALOG_TITLE_TEXT);
             alert.setHeaderText(null);
 
@@ -292,12 +346,16 @@ public final class NumberGameInterface
 
             alert.getButtonTypes().clear();
 
-            final ButtonType tryAgainButtonType = new ButtonType(GAME_OVER_DIALOG_TRY_AGAIN_TEXT);
-            final ButtonType quitButtonType = new ButtonType(GAME_OVER_DIALOG_QUIT_TEXT);
+            final ButtonType tryAgainButtonType;
+            tryAgainButtonType = new ButtonType(GAME_OVER_DIALOG_TRY_AGAIN_TEXT);
+
+            final ButtonType quitButtonType;
+            quitButtonType = new ButtonType(GAME_OVER_DIALOG_QUIT_TEXT);
 
             alert.getButtonTypes().addAll(tryAgainButtonType, quitButtonType);
 
-            final Optional<ButtonType> selection = alert.showAndWait();
+            final Optional<ButtonType> selection;
+            selection = alert.showAndWait();
 
             if (selection.isPresent() && selection.get() == tryAgainButtonType)
             {
@@ -305,7 +363,8 @@ public final class NumberGameInterface
             }
             else if (selection.isPresent() && selection.get() == quitButtonType)
             {
-                final Stage stage = (Stage) currentNumberDisplay.getScene().getWindow();
+                final Stage stage;
+                stage = (Stage) currentNumberDisplay.getScene().getWindow();
                 stage.close();
 
                 if (gameFinishedLatch != null)
@@ -323,9 +382,12 @@ public final class NumberGameInterface
          */
         public void reRenderGrid(final int[] currentBoard)
         {
-            for (int currentCellIndex = 0; currentCellIndex < currentBoard.length; currentCellIndex++)
+            for (int currentCellIndex = 0;
+                 currentCellIndex < currentBoard.length;
+                 currentCellIndex++)
             {
-                final int valueInCell = currentBoard[currentCellIndex];
+                final int valueInCell;
+                valueInCell = currentBoard[currentCellIndex];
 
                 if (valueInCell == EMPTY_CELL_VALUE)
                 {

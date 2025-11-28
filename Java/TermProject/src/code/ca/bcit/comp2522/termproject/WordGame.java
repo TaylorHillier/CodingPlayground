@@ -20,12 +20,26 @@ interface Question
     String getAnswer();
 }
 
-class AccentRemover
+/**
+ * Utility for removing accents from strings.
+ */
+final class AccentRemover
 {
+    private AccentRemover()
+    {
+        // Utility class; prevent instantiation.
+    }
+
     public static String removeAccents(final String originalString)
     {
-        final String normalizedString = Normalizer.normalize(originalString, Normalizer.Form.NFKD);
-        return normalizedString.replaceAll("\\p{InCombiningDiacriticalMarks}+", "");
+        final String normalizedString;
+        normalizedString = Normalizer.normalize(originalString, Normalizer.Form.NFKD);
+
+        final String resultWithoutAccents;
+        resultWithoutAccents =
+            normalizedString.replaceAll("\\p{InCombiningDiacriticalMarks}+", "");
+
+        return resultWithoutAccents;
     }
 }
 
@@ -36,13 +50,20 @@ abstract class AbstractCountryQuestion implements Question
 
     protected AbstractCountryQuestion(final Country country)
     {
-        this.country          = country;
-        normalizedCountryName = AccentRemover.removeAccents(country.getCountryName());
+        this.country = country;
+
+        final String normalizedCountryNameValue;
+        normalizedCountryNameValue = normalize(country.getCountryName());
+
+        normalizedCountryName = normalizedCountryNameValue;
     }
 
     protected String normalize(final String word)
     {
-        return AccentRemover.removeAccents(word.trim().toLowerCase());
+        final String trimmedLowerCaseWord;
+        trimmedLowerCaseWord = word.trim().toLowerCase();
+
+        return AccentRemover.removeAccents(trimmedLowerCaseWord);
     }
 
     @Override
@@ -56,12 +77,12 @@ abstract class AbstractCountryQuestion implements Question
  * Handles the console-based word game loop that quizzes the player about
  * countries, capitals, and facts.
  */
-public class WordGame
+public final class WordGame
 {
     // -------------------- Game Constants (no magic numbers) --------------------
 
     private static final int FIRST_QUESTION_NUMBER     = 1;
-    private static final int TOTAL_QUESTIONS_PER_ROUND = 3;
+    private static final int TOTAL_QUESTIONS_PER_ROUND = 10;
 
     private static final int INITIAL_GUESS_COUNT             = 0;
     private static final int MAXIMUM_GUESS_COUNT_EXCLUSIVE   = 2;
@@ -81,7 +102,7 @@ public class WordGame
     private final Scanner input;
 
     /**
-     * Constructs a new WordGame that reads all user input from the provided scanner.
+     * Constructs a new {@code WordGame} that reads all user input from the provided scanner.
      *
      * @param input scanner used to read player responses from the console
      */
@@ -106,9 +127,14 @@ public class WordGame
                  questionNumber <= TOTAL_QUESTIONS_PER_ROUND;
                  questionNumber++)
             {
-                int guessCount = INITIAL_GUESS_COUNT;
-                boolean correct = false;
-                final Question question = questionFactory.generateRandomQuestion();
+                int guessCount;
+                guessCount = INITIAL_GUESS_COUNT;
+
+                boolean correct;
+                correct = false;
+
+                final Question question;
+                question = questionFactory.generateRandomQuestion();
 
                 while (guessCount < MAXIMUM_GUESS_COUNT_EXCLUSIVE && !correct)
                 {
@@ -117,8 +143,8 @@ public class WordGame
                         System.out.println("Question " + questionNumber + ": " + question.getPrompt());
                     }
 
-                    final String userInput = input.nextLine().trim().toLowerCase();
-                    System.out.println(userInput);
+                    final String userInput;
+                    userInput = input.nextLine().trim().toLowerCase();
 
                     correct = question.checkAnswer(userInput);
                     guessCount++;
@@ -148,11 +174,13 @@ public class WordGame
                 }
             }
 
-            final String summary =
+            final String summary;
+            summary =
                 gamesPlayed + " word games played\n"
                 + firstCorrectGuesses + " correct answers on first attempt\n"
                 + secondCorrectGuesses + " correct answers on second attempt\n"
                 + incorrectGuesses + " incorrect answers on the two attempts each";
+
             System.out.println(summary);
 
             String playerAnswer;
@@ -174,27 +202,35 @@ public class WordGame
                     {
                         playAgain = false;
 
-                        final Score newScore = new Score(LocalDateTime.now(),
-                                                         gamesPlayed,
-                                                         firstCorrectGuesses,
-                                                         secondCorrectGuesses,
-                                                         incorrectGuesses);
+                        final Score newScore;
+                        newScore = new Score(LocalDateTime.now(),
+                                             gamesPlayed,
+                                             firstCorrectGuesses,
+                                             secondCorrectGuesses,
+                                             incorrectGuesses);
 
-                        final float scoreAvgCurRound = newScore.calculateTotalScore();
+                        final float scoreAverageCurrentRound;
+                        scoreAverageCurrentRound = newScore.calculateTotalScore();
 
                         try
                         {
-                            final float highScore = Score.getHighScore();
-                            final String highScoreTime = Score.getHighScoreTime();
-                            final String highScoreDate = Score.getHighScoreDate();
+                            final float highScore;
+                            final String highScoreTime;
+                            final String highScoreDate;
 
-                            newScore.appendScoreToFile();
+                            // Use the CSV-backed high score methods
+                            highScore     = Score.getHighScore();
+                            highScoreTime = Score.getHighScoreTime();
+                            highScoreDate = Score.getHighScoreDate();
 
-                            if (scoreAvgCurRound > highScore)
+                            // Use the CSV-backed save method (reuses appendScoreToFile)
+                            newScore.saveToDefaultScoreFile();
+
+                            if (scoreAverageCurrentRound > highScore)
                             {
                                 System.out.println(
                                     "CONGRATULATIONS! You are the new high score with an average of "
-                                    + scoreAvgCurRound + " points per game; the previous record was "
+                                    + scoreAverageCurrentRound + " points per game; the previous record was "
                                     + highScore + " points per game on " + highScoreDate + " at "
                                     + highScoreTime
                                                   );
@@ -212,6 +248,7 @@ public class WordGame
                             throw new RuntimeException(exception);
                         }
 
+
                         break;
                     }
 
@@ -226,7 +263,7 @@ public class WordGame
     }
 }
 
-class CapitalQuestion extends AbstractCountryQuestion
+final class CapitalQuestion extends AbstractCountryQuestion
 {
     private final String normalizedCapitalName;
 
@@ -245,7 +282,10 @@ class CapitalQuestion extends AbstractCountryQuestion
     @Override
     public boolean checkAnswer(final String userAnswer)
     {
-        return normalize(userAnswer).equals(normalizedCapitalName);
+        final String normalizedUserAnswer;
+        normalizedUserAnswer = normalize(userAnswer);
+
+        return normalizedUserAnswer.equals(normalizedCapitalName);
     }
 
     @Override
@@ -255,7 +295,7 @@ class CapitalQuestion extends AbstractCountryQuestion
     }
 }
 
-class CountryQuestion extends AbstractCountryQuestion
+final class CountryQuestion extends AbstractCountryQuestion
 {
     private final String normalizedCountryNameLocal;
 
@@ -274,11 +314,14 @@ class CountryQuestion extends AbstractCountryQuestion
     @Override
     public boolean checkAnswer(final String userAnswer)
     {
-        return normalize(userAnswer).equals(normalizedCountryNameLocal);
+        final String normalizedUserAnswer;
+        normalizedUserAnswer = normalize(userAnswer);
+
+        return normalizedUserAnswer.equals(normalizedCountryNameLocal);
     }
 }
 
-class FactQuestion extends AbstractCountryQuestion
+final class FactQuestion extends AbstractCountryQuestion
 {
     private final String randomFact;
 
@@ -297,11 +340,14 @@ class FactQuestion extends AbstractCountryQuestion
     @Override
     public boolean checkAnswer(final String userAnswer)
     {
-        return normalize(userAnswer).equals(normalizedCountryName);
+        final String normalizedUserAnswer;
+        normalizedUserAnswer = normalize(userAnswer);
+
+        return normalizedUserAnswer.equals(normalizedCountryName);
     }
 }
 
-class QuestionFactory
+final class QuestionFactory
 {
     private final World  world;
     private final Random random;
@@ -314,11 +360,17 @@ class QuestionFactory
 
     Question generateRandomQuestion()
     {
-        final Country randomCountry = world.getRandomCountry();
-        final QuestionType type =
-            QuestionType.values()[random.nextInt(QuestionType.values().length)];
+        final Country randomCountry;
+        final QuestionType[] questionTypes;
+        final int randomTypeIndex;
+        final QuestionType selectedQuestionType;
 
-        return switch (type)
+        randomCountry        = world.getRandomCountry();
+        questionTypes        = QuestionType.values();
+        randomTypeIndex      = random.nextInt(questionTypes.length);
+        selectedQuestionType = questionTypes[randomTypeIndex];
+
+        return switch (selectedQuestionType)
         {
             case CAPITAL -> new CapitalQuestion(randomCountry);
             case COUNTRY -> new CountryQuestion(randomCountry);

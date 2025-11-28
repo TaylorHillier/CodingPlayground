@@ -1,14 +1,19 @@
 package ca.bcit.comp2522.termproject;
 
 /**
- * Represents the state of the golf ball in world-space coordinates (pixels).
- * Stores position, velocity, and motion flags.
+ * Represents the state of the golf ball in world-space coordinates (pixels),
+ * including position, velocity, and movement state.
+ * <p>
+ * The ball is mutable during gameplay and can be launched, updated, or reset
+ * to safe positions. All coordinates and velocities are stored in pixels.
  *
  * @author Taylor
  * @version 1.0
  */
 public final class GolfBall
 {
+    private static final double ZERO_VELOCITY_PIXELS_PER_SECOND = 0.0;
+
     private final double radiusPixels;
 
     private double positionXPixels;
@@ -17,14 +22,17 @@ public final class GolfBall
     private double velocityXPixelsPerSecond;
     private double velocityYPixelsPerSecond;
 
+    private double safePositionXPixels;
+    private double safePositionYPixels;
+
     private boolean moving;
 
     /**
      * Constructs a GolfBall with an initial position and radius.
      *
-     * @param initialPositionXPixels the starting x-coordinate in pixels
-     * @param initialPositionYPixels the starting y-coordinate in pixels
-     * @param radiusPixels           the radius of the ball in pixels
+     * @param initialPositionXPixels initial x-position in pixels
+     * @param initialPositionYPixels initial y-position in pixels
+     * @param radiusPixels           radius of the ball in pixels
      */
     public GolfBall(final double initialPositionXPixels,
                     final double initialPositionYPixels,
@@ -35,51 +43,74 @@ public final class GolfBall
         positionXPixels = initialPositionXPixels;
         positionYPixels = initialPositionYPixels;
 
-        velocityXPixelsPerSecond = 0.0;
-        velocityYPixelsPerSecond = 0.0;
+        velocityXPixelsPerSecond = ZERO_VELOCITY_PIXELS_PER_SECOND;
+        velocityYPixelsPerSecond = ZERO_VELOCITY_PIXELS_PER_SECOND;
 
         moving = false;
+
+        safePositionXPixels = initialPositionXPixels;
+        safePositionYPixels = initialPositionYPixels;
     }
 
     /**
-     * Resets the ball to a new tee position and stops all motion.
-     *
-     * @param newPositionXPixels the x-coordinate of the tee in pixels
-     * @param newPositionYPixels the y-coordinate of the tee in pixels
+     * Marks the current position of the ball as the safe fallback location.
      */
-    public void resetToTee(final double newPositionXPixels,
-                           final double newPositionYPixels)
+    public void markSafePosition()
     {
-        positionXPixels = newPositionXPixels;
-        positionYPixels = newPositionYPixels;
+        safePositionXPixels = positionXPixels;
+        safePositionYPixels = positionYPixels;
+    }
 
-        velocityXPixelsPerSecond = 0.0;
-        velocityYPixelsPerSecond = 0.0;
+    /**
+     * Resets the ball to its most recently marked safe position and stops movement.
+     */
+    public void resetToSafePosition()
+    {
+        positionXPixels = safePositionXPixels;
+        positionYPixels = safePositionYPixels;
+
+        velocityXPixelsPerSecond = ZERO_VELOCITY_PIXELS_PER_SECOND;
+        velocityYPixelsPerSecond = ZERO_VELOCITY_PIXELS_PER_SECOND;
+    }
+
+    /**
+     * Resets the ball to a tee position and stops all motion.
+     *
+     * @param teePositionXPixels tee x-position in pixels
+     * @param teePositionYPixels tee y-position in pixels
+     */
+    public void resetToTee(final double teePositionXPixels,
+                           final double teePositionYPixels)
+    {
+        positionXPixels = teePositionXPixels;
+        positionYPixels = teePositionYPixels;
+
+        velocityXPixelsPerSecond = ZERO_VELOCITY_PIXELS_PER_SECOND;
+        velocityYPixelsPerSecond = ZERO_VELOCITY_PIXELS_PER_SECOND;
 
         moving = false;
     }
 
     /**
-     * Sets the ball in motion with a new velocity.
+     * Launches the ball with the specified velocity components.
      *
-     * @param newVelocityXPixelsPerSecond velocity in the x direction, in pixels per second
-     * @param newVelocityYPixelsPerSecond velocity in the y direction, in pixels per second
+     * @param newVelocityXPixelsPerSecond horizontal velocity in pixels per second
+     * @param newVelocityYPixelsPerSecond vertical velocity in pixels per second
      */
     public void launch(final double newVelocityXPixelsPerSecond,
                        final double newVelocityYPixelsPerSecond)
     {
         velocityXPixelsPerSecond = newVelocityXPixelsPerSecond;
         velocityYPixelsPerSecond = newVelocityYPixelsPerSecond;
-        moving                   = true;
+
+        moving = true;
     }
 
     /**
-     * Integrates the ball's motion under the given vertical acceleration.
-     * Does not know anything about terrain or collision; it only moves
-     * position and velocity.
+     * Updates the ball's free-flight motion under a vertical acceleration.
      *
      * @param deltaTimeSeconds                           elapsed time in seconds
-     * @param verticalAccelerationPixelsPerSecondSquared vertical acceleration in pixels per second squared
+     * @param verticalAccelerationPixelsPerSecondSquared acceleration in pixels per second squared
      */
     public void updateFreeFlight(final double deltaTimeSeconds,
                                  final double verticalAccelerationPixelsPerSecondSquared)
@@ -89,66 +120,111 @@ public final class GolfBall
             return;
         }
 
-        velocityYPixelsPerSecond += verticalAccelerationPixelsPerSecondSquared * deltaTimeSeconds;
+        velocityYPixelsPerSecond +=
+            verticalAccelerationPixelsPerSecondSquared * deltaTimeSeconds;
 
         positionXPixels += velocityXPixelsPerSecond * deltaTimeSeconds;
         positionYPixels += velocityYPixelsPerSecond * deltaTimeSeconds;
     }
 
     /**
-     * Snaps the ball onto the ground y-position and optionally stops vertical motion.
+     * Snaps the ball onto the ground y-position.
      *
-     * @param groundCenterYPixels the y-coordinate of the ground at the ball's x in pixels
+     * @param groundCenterYPixels ground y-position in pixels
      */
     public void snapToGround(final double groundCenterYPixels)
     {
         positionYPixels = groundCenterYPixels;
     }
 
+    /**
+     * Returns the current x-position of the ball in pixels.
+     *
+     * @return x-position in pixels
+     */
     public double getPositionXPixels()
     {
         return positionXPixels;
     }
 
+    /**
+     * Returns the current y-position of the ball in pixels.
+     *
+     * @return y-position in pixels
+     */
     public double getPositionYPixels()
     {
         return positionYPixels;
     }
 
+    /**
+     * Returns the horizontal velocity in pixels per second.
+     *
+     * @return horizontal velocity in px/s
+     */
     public double getVelocityXPixelsPerSecond()
     {
         return velocityXPixelsPerSecond;
     }
 
+    /**
+     * Sets the horizontal velocity of the ball.
+     *
+     * @param newVelocityXPixelsPerSecond new horizontal velocity in px/s
+     */
     public void setVelocityXPixelsPerSecond(final double newVelocityXPixelsPerSecond)
     {
         velocityXPixelsPerSecond = newVelocityXPixelsPerSecond;
     }
 
+    /**
+     * Returns the vertical velocity in pixels per second.
+     *
+     * @return vertical velocity in px/s
+     */
     public double getVelocityYPixelsPerSecond()
     {
         return velocityYPixelsPerSecond;
     }
 
+    /**
+     * Sets the vertical velocity of the ball.
+     *
+     * @param newVelocityYPixelsPerSecond new vertical velocity in px/s
+     */
     public void setVelocityYPixelsPerSecond(final double newVelocityYPixelsPerSecond)
     {
         velocityYPixelsPerSecond = newVelocityYPixelsPerSecond;
     }
 
+    /**
+     * Returns the radius of the ball in pixels.
+     *
+     * @return radius in pixels
+     */
     public double getRadiusPixels()
     {
         return radiusPixels;
     }
 
+    /**
+     * Returns whether the ball is currently moving.
+     *
+     * @return true if moving, false otherwise
+     */
     public boolean isMoving()
     {
         return moving;
     }
 
+    /**
+     * Stops all ball movement and zeroes out velocities.
+     */
     public void stop()
     {
-        moving                   = false;
-        velocityXPixelsPerSecond = 0.0;
-        velocityYPixelsPerSecond = 0.0;
+        moving = false;
+
+        velocityXPixelsPerSecond = ZERO_VELOCITY_PIXELS_PER_SECOND;
+        velocityYPixelsPerSecond = ZERO_VELOCITY_PIXELS_PER_SECOND;
     }
 }

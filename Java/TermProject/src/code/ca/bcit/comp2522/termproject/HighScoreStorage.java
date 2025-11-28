@@ -5,81 +5,111 @@ import javafx.scene.control.Label;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.List;
-import java.util.stream.Collectors;
 
 /**
- * Handles loading and saving the best score for the golf game.
+ * Handles loading and saving the best golf round relative to par
+ * as a simple text file on disk.
  *
  * @author Taylor
  * @version 1.0
  */
 public final class HighScoreStorage
 {
-    private static final String HIGH_SCORE_FILE_NAME = "golf_best_score.txt";
+    /**
+     * File name used to store the best round relative to par.
+     */
+    private static final String BEST_ROUND_FILE_NAME = "golf_best_round.txt";
 
-    private static final Path HIGH_SCORE_FILE_PATH =
-        Path.of(System.getProperty("user.home"), HIGH_SCORE_FILE_NAME);
+    /**
+     * Absolute file system path to the best round file, resolved
+     * against the current working directory.
+     */
+    private static final Path BEST_ROUND_FILE_PATH =
+        Path.of("").toAbsolutePath().resolve(BEST_ROUND_FILE_NAME);
 
+    /**
+     * Private constructor to prevent instantiation of this utility class.
+     */
     private HighScoreStorage()
     {
         // Utility class; prevent instantiation.
     }
 
     /**
-     * Loads the best score from disk, if available.
+     * Loads the best round relative to par from the storage file.
+     * <p>
+     * The method returns {@code null} if the file does not exist,
+     * is empty, or contains a value that cannot be parsed as an integer.
      *
-     * @return best score, or null if none exists or file is invalid
+     * @return the best round relative to par, or {@code null} if unavailable
      */
-    public static Integer loadBestScore()
+    public static Integer loadBestRoundRelativeToPar()
     {
         try
         {
-            if (Files.exists(HIGH_SCORE_FILE_PATH))
+            if (!Files.exists(BEST_ROUND_FILE_PATH))
             {
-                final List<String> fileLines =
-                    Files.readAllLines(HIGH_SCORE_FILE_PATH);
-
-                final List<Integer> parsedScores =
-                    fileLines.stream()
-                             .map(String::trim)
-                             .filter(line -> !line.isEmpty())
-                             .map(Integer::parseInt)
-                             .collect(Collectors.toList());
-
-                if (!parsedScores.isEmpty())
-                {
-                    return parsedScores.get(0);
-                }
+                System.out.println("Best round file not found at: " + BEST_ROUND_FILE_PATH);
+                return null;
             }
+
+            final String fileContents;
+            fileContents = Files.readString(BEST_ROUND_FILE_PATH).trim();
+
+            if (fileContents.isEmpty())
+            {
+                System.out.println("Best round file is empty at: " + BEST_ROUND_FILE_PATH);
+                return null;
+            }
+
+            final int parsedValue;
+            parsedValue = Integer.parseInt(fileContents);
+            
+            return parsedValue;
         }
         catch (final IOException | NumberFormatException exception)
         {
+            System.err.println("Failed to load best round from "
+                               + BEST_ROUND_FILE_PATH + ": " + exception.getMessage());
             return null;
         }
-
-        return null;
     }
 
     /**
-     * Saves the best score to disk.
+     * Saves the provided best round relative to par into the storage file.
+     * <p>
+     * If saving fails, an error is logged to standard error and the
+     * status label is updated with a failure message if it is not {@code null}.
      *
-     * @param bestScoreStrokes best score to save
-     * @param statusLabel      label for reporting save failures (may be null)
+     * @param relativeToPar the best round relative to par to persist
+     * @param statusLabel   the label used to display a failure status message, or {@code null}
      */
-    public static void saveBestScore(final int bestScoreStrokes,
-                                     final Label statusLabel)
+    public static void saveBestRoundRelativeToPar(final int relativeToPar,
+                                                  final Label statusLabel)
     {
         try
         {
-            final String scoreAsString = Integer.toString(bestScoreStrokes);
-            Files.writeString(HIGH_SCORE_FILE_PATH, scoreAsString);
+            final String scoreAsString;
+            scoreAsString = Integer.toString(relativeToPar);
+
+            if (BEST_ROUND_FILE_PATH.getParent() != null)
+            {
+                Files.createDirectories(BEST_ROUND_FILE_PATH.getParent());
+            }
+
+            Files.writeString(BEST_ROUND_FILE_PATH, scoreAsString);
+
+            System.out.println("Saved best round " + relativeToPar
+                               + " to " + BEST_ROUND_FILE_PATH);
         }
         catch (final IOException ioException)
         {
+            System.err.println("Failed to save best round to "
+                               + BEST_ROUND_FILE_PATH + ": " + ioException.getMessage());
+
             if (statusLabel != null)
             {
-                statusLabel.setText("Hole complete, but failed to save best score.");
+                statusLabel.setText("Round complete, but failed to save best round.");
             }
         }
     }

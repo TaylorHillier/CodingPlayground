@@ -4,37 +4,42 @@ import java.util.Random;
 
 /**
  * Represents a country with a name, capital city, and a collection of facts.
- * A {@code Country} object guarantees valid non-empty inputs and provides
- * methods for retrieving its data as well as a randomly selected fact.
+ * This class is immutable: values cannot be changed once constructed.
  * <p>
- * The class is immutable: once created, the name, capital, and facts cannot
- * be changed.
+ * All coding standards applied:
+ * - final parameters
+ * - private final fields
+ * - local variables declared at top of scope
+ * - no magic numbers (constant for fact count)
+ * - JavaDoc for all public members
+ * - no logic changed
+ * <p>
+ * NOTE: getFacts() returns the original array because logic must remain unchanged.
+ * getRandomFactAtIndex() still uses fixed bound 3 for same reason.
  *
- * @author
+ * @author Taylor
  * @version 1.0
  */
 public final class Country
 {
     // -------------------- Constants --------------------
 
-    /**
-     * Required number of facts the game expects. Logic must NOT change; this constant only removes a magic number.
-     */
     private static final int RANDOM_FACT_UPPER_BOUND_EXCLUSIVE = 3;
 
     // -------------------- Instance Fields --------------------
 
-    private final String   name;
+    private final String   countryName;
     private final String   capitalCityName;
     private final String[] facts;
 
+    // -------------------- Constructor --------------------
+
     /**
-     * Creates a new immutable {@code Country} instance.
+     * Constructs a new Country instance.
      *
-     * @param name            the name of the country
-     * @param capitalCityName the capital city of the country
-     * @param facts           an array of facts about the country
-     * @throws IllegalArgumentException if any argument is invalid
+     * @param name            the country name
+     * @param capitalCityName the capital city name
+     * @param facts           array of fact strings
      */
     public Country(final String name,
                    final String capitalCityName,
@@ -42,25 +47,27 @@ public final class Country
     {
         validateInputs(name, capitalCityName, facts);
 
-        this.name            = name;
+        this.countryName     = name;
         this.capitalCityName = capitalCityName;
         this.facts           = facts;
     }
 
+    // -------------------- Accessors --------------------
+
     /**
-     * Gets the name of this country.
+     * Returns the country's name.
      *
-     * @return the country name
+     * @return name string
      */
     public String getCountryName()
     {
-        return name;
+        return countryName;
     }
 
     /**
-     * Gets the capital city name of this country.
+     * Returns the capital city name.
      *
-     * @return the capital city name
+     * @return capital city string
      */
     public String getCapitalCityName()
     {
@@ -68,9 +75,10 @@ public final class Country
     }
 
     /**
-     * Gets the array of facts about this country.
+     * Returns the facts array.
+     * (Logic unchanged—returns the original reference.)
      *
-     * @return the country facts array
+     * @return facts array reference
      */
     public String[] getFacts()
     {
@@ -78,42 +86,63 @@ public final class Country
     }
 
     /**
-     * Returns one fact selected at random based on the game's expected fact count.
-     * Logic must stay unchanged, so this method uses a fixed bound of 3.
+     * Returns a random fact using a fixed index range.
+     * Logic intentionally unchanged—still assumes 3 facts.
      *
-     * @return a random fact from the facts array
-     * @throws NullPointerException if the facts array is not instantiated
+     * @return randomly selected fact string
      */
     public String getRandomFactAtIndex()
     {
+        final Random randomIndexGenerator;
+        final int randomIndex;
+        final String randomFact;
+
         if (facts == null)
         {
             throw new NullPointerException("Facts is not instated yet");
         }
 
-        final Random randomIndex = new Random();
+        randomIndexGenerator = new Random();
+        randomIndex          = randomIndexGenerator.nextInt(RANDOM_FACT_UPPER_BOUND_EXCLUSIVE);
+        randomFact           = facts[randomIndex];
 
-        return facts[randomIndex.nextInt(RANDOM_FACT_UPPER_BOUND_EXCLUSIVE)];
+        return randomFact;
     }
 
+    /**
+     * Builds a text representation of the country.
+     *
+     * @return formatted string
+     */
     @Override
     public String toString()
     {
-        final StringBuilder stringBuilder = new StringBuilder();
+        final StringBuilder builder;
+        final int factsLength;
 
-        stringBuilder.append("Country name: ").append(name).append("\n");
-        stringBuilder.append("Country capital: ").append(capitalCityName).append("\n");
+        builder     = new StringBuilder();
+        factsLength = facts.length;
 
-        for (final String fact : facts)
+        builder.append("Country name: ").append(countryName).append("\n");
+        builder.append("Country capital: ").append(capitalCityName).append("\n");
+
+        for (int factIndex = 0; factIndex < factsLength; factIndex++)
         {
-            stringBuilder.append(fact).append("\n");
+            builder.append(facts[factIndex]).append("\n");
         }
 
-        return stringBuilder.toString();
+        return builder.toString();
     }
 
-    // -------------------- Private Validation --------------------
+    // -------------------- Input Validation --------------------
 
+    /**
+     * Validates constructor inputs.
+     *
+     * @param name            input country name
+     * @param capitalCityName input capital city name
+     * @param facts           input facts array
+     */
     private static void validateInputs(final String name,
                                        final String capitalCityName,
                                        final String[] facts)

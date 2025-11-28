@@ -1,0 +1,98 @@
+/* Root container for the golf game */
+.game-root {
+    -fx-background-color: linear-gradient(to bottom, #1b2833, #122018);
+    -fx-font-family: "Segoe UI", "Roboto", "Arial";
+    -fx-font-size: 13px;
+}
+
+/* Canvas frame look */
+.game-canvas {
+    -fx-effect: dropshadow(gaussian, rgba(0, 0, 0, 0.55), 18, 0.2, 0, 4);
+    -fx-border-color: #243b24;
+    -fx-border-width: 2;
+    -fx-border-radius: 6;
+}
+
+/* Bottom control bar */
+.game-control-bar {
+    -fx-background-color: linear-gradient(to right, #243b24, #1e2a1e);
+    -fx-padding: 8 12 8 12;
+    -fx-spacing: 12;
+    -fx-alignment: center-left;
+    -fx-border-color: #151f15;
+    -fx-border-width: 1 0 0 0;
+}
+
+/* Labels in the control bar */
+.game-control-bar .label {
+    -fx-text-fill: #e0f0e0;
+}
+
+/* Generic small control label like "Club:" */
+.control-label {
+    -fx-font-weight: bold;
+    -fx-text-fill: #d5e7d5;
+}
+
+/* Score label (par / strokes / round) */
+.score-label {
+    -fx-font-weight: bold;
+    -fx-text-fill: #f4f8f4;
+    -fx-padding: 0 16 0 16;
+}
+
+/* Status text (messages like 'Splash!' / 'Hole complete') */
+.status-label {
+    -fx-text-fill: #f9f9f9;
+    -fx-font-style: italic;
+}
+
+/* New round button / primary actions */
+.primary-button {
+    -fx-background-color: linear-gradient(to bottom, #3c7c3c, #275227);
+    -fx-text-fill: #f5fff5;
+    -fx-font-weight: bold;
+    -fx-padding: 4 12 4 12;
+    -fx-background-radius: 16;
+    -fx-border-radius: 16;
+    -fx-border-color: rgba(0, 0, 0, 0.35);
+    -fx-border-width: 1;
+}
+
+.primary-button:hover {
+    -fx-background-color: linear-gradient(to bottom, #4e9a4e, #2e642e);
+}
+
+.primary-button:pressed {
+    -fx-background-color: linear-gradient(to bottom, #244824, #193519);
+}
+
+/* ComboBox for club selection */
+.club-selector {
+    -fx-background-color: #1b2521;
+    -fx-text-fill: #ecf5ec;
+    -fx-border-color: #3a5140;
+    -fx-border-radius: 4;
+    -fx-background-radius: 4;
+}
+
+/* ComboBox popup list */
+.club-selector .list-cell {
+    -fx-text-fill: #f4fff4;
+    -fx-background-color: #26362e;
+}
+
+.club-selector .list-cell:hover {
+    -fx-background-color: #35513c;
+}
+
+/* Buttons inside the control bar share similar hover look */
+.game-control-bar .button {
+    -fx-cursor: hand;
+}
+
+/* Optional: tweak focus ring for controls */
+.game-control-bar .button:focused,
+.game-control-bar .combo-box:focused {
+    -fx-effect: dropshadow(gaussian, rgba(255, 255, 255, 0.25), 8, 0.2, 0, 0);
+}

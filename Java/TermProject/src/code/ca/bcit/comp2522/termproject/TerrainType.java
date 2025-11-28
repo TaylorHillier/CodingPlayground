@@ -12,5 +12,7 @@ public enum TerrainType
     ROUGH,
     SAND,
     WATER,
+    GREEN,   // new: green around the hole
     HOLE
 }
+

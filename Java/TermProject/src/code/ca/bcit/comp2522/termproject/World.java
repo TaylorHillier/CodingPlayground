@@ -13,8 +13,8 @@ import java.util.Set;
  * Represents a collection of {@link Country} objects loaded from resource files.
  * Each file (a.txt, b.txt, ..., z.txt) may contain multiple countries and facts.
  * This class provides a way to randomly select a country for use in games.
- * <p>
- * The format of each file is expected to be:
+ *
+ * <p>The format of each file is expected to be:</p>
  * <pre>
  * CountryName:CapitalCity
  * fact line 1
@@ -25,7 +25,7 @@ import java.util.Set;
  * ...
  * </pre>
  *
- * @author Taylor Hillier
+ * @author Taylor
  * @version 1.0
  */
 public final class World
@@ -60,16 +60,19 @@ public final class World
         generateWorld();
     }
 
+    /**
+     * Loads country data from resource files (a.txt through z.txt) and
+     * populates the internal map.
+     */
     private void generateWorld()
     {
-        for (char currentFileLetter = FIRST_COUNTRY_FILE_LETTER;
-             currentFileLetter <= LAST_COUNTRY_FILE_LETTER;
-             currentFileLetter++)
+        for (char currentFileLetter = FIRST_COUNTRY_FILE_LETTER; currentFileLetter <= LAST_COUNTRY_FILE_LETTER; currentFileLetter++)
         {
-            final String fileName = currentFileLetter + COUNTRY_FILE_EXTENSION;
+            final String fileName;
+            fileName = currentFileLetter + COUNTRY_FILE_EXTENSION;
 
-            final InputStream inputStream =
-                getClass().getResourceAsStream(COUNTRY_FILE_PATH_PREFIX + fileName);
+            final InputStream inputStream;
+            inputStream = getClass().getResourceAsStream(COUNTRY_FILE_PATH_PREFIX + fileName);
 
             if (inputStream == null)
             {
@@ -79,15 +82,22 @@ public final class World
             try (Scanner scanner = new Scanner(inputStream))
             {
                 String[] countryProperties;
-                String countryNameKey = null;
-                String capitalCityName = null;
-                List<String> facts = new ArrayList<>();
+                String countryNameKey;
+                String capitalCityName;
+                List<String> facts;
                 Country country;
-                boolean firstLine = false;
+                boolean firstLine;
+
+                countryNameKey  = null;
+                capitalCityName = null;
+                facts           = new ArrayList<>();
+                country         = null;
+                firstLine       = false;
 
                 while (scanner.hasNextLine())
                 {
-                    final String line = scanner.nextLine().trim();
+                    final String line;
+                    line = scanner.nextLine().trim();
 
                     if (line.isEmpty())
                     {
@@ -96,8 +106,7 @@ public final class World
 
                     if (line.contains(COUNTRY_LINE_SEPARATOR) && firstLine)
                     {
-                        countryProperties =
-                            line.split(COUNTRY_LINE_SEPARATOR, COUNTRY_LINE_SPLIT_LIMIT);
+                        countryProperties = line.split(COUNTRY_LINE_SEPARATOR, COUNTRY_LINE_SPLIT_LIMIT);
 
                         countryNameKey  = countryProperties[COUNTRY_NAME_INDEX].trim();
                         capitalCityName = countryProperties[COUNTRY_CAPITAL_INDEX].trim();
@@ -108,14 +117,15 @@ public final class World
                         facts.add(line);
                     }
 
-                    final String[] factArray =
-                        facts.toArray(new String[EMPTY_ARRAY_LENGTH]);
+                    final String[] factArray;
+                    factArray = facts.toArray(new String[EMPTY_ARRAY_LENGTH]);
 
                     if (line.isEmpty()
                         && countryNameKey != null
                         && capitalCityName != null)
                     {
                         country = new Country(countryNameKey, capitalCityName, factArray);
+
                         countries.put(countryNameKey, country);
 
                         countryNameKey  = null;
@@ -134,13 +144,18 @@ public final class World
      */
     public Country getRandomCountry()
     {
-        final Set<String> keySet = countries.keySet();
-        final Object[] keys = keySet.toArray();
+        final Set<String> keySet;
+        final Object[] keys;
+        final Random randomNumberGenerator;
+        final int randomIndex;
+        final String randomKey;
 
-        final Random random = new Random();
-        final int randomIndex = random.nextInt(keys.length);
+        keySet                = countries.keySet();
+        keys                  = keySet.toArray();
+        randomNumberGenerator = new Random();
+        randomIndex           = randomNumberGenerator.nextInt(keys.length);
+        randomKey             = (String) keys[randomIndex];
 
-        final String randomKey = (String) keys[randomIndex];
         return countries.get(randomKey);
     }
 }

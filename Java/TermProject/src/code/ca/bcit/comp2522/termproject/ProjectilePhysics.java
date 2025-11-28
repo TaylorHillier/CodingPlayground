@@ -1,5 +1,7 @@
 package ca.bcit.comp2522.termproject;
 
+import java.util.List;
+
 /**
  * Utility methods for projectile and rolling physics in the golf game.
  *
@@ -9,15 +11,38 @@ package ca.bcit.comp2522.termproject;
 public final class ProjectilePhysics
 {
     private static final double GRAVITY_ACCELERATION_PIXELS_PER_SECOND_SQUARED = 420.0;
-    private static final double GRAVITY_MULTIPLIER_ASCENT                      = 0.8;
-    private static final double GRAVITY_MULTIPLIER_DESCENT                     = 1.2;
+
+    private static final double GRAVITY_MULTIPLIER_ASCENT = 0.8;
+
+    private static final double GRAVITY_MULTIPLIER_DESCENT = 1.2;
 
     private static final double LANDING_BOUNCE_THRESHOLD_PIXELS_PER_SECOND = 80.0;
 
+    private static final double LANDING_BOUNCE_ENERGY_RESTITUTION_FACTOR = 0.35;
+
     private static final double ROLL_FRICTION_FACTOR_FAIRWAY = 0.96;
-    private static final double ROLL_FRICTION_FACTOR_ROUGH   = 0.90;
-    private static final double ROLL_FRICTION_FACTOR_SAND    = 0.80;
+
+    private static final double ROLL_FRICTION_FACTOR_ROUGH = 0.90;
+
+    private static final double ROLL_FRICTION_FACTOR_SAND = 0.80;
+
     private static final double ROLL_FRICTION_FACTOR_DEFAULT = 0.92;
+
+    private static final double ROLL_STOP_SPEED_THRESHOLD_PIXELS_PER_SECOND = 10.0;
+
+    private static final double PROJECTILE_DOUBLE_ANGLE_MULTIPLIER = 2.0;
+
+    private static final double PROJECTILE_APEX_DIVISOR = 2.0;
+
+    private static final double ZERO_SIN_ANGLE_THRESHOLD = 0.0;
+
+    private static final double MINIMUM_INITIAL_SPEED_PIXELS_PER_SECOND = 0.0;
+
+    private static final double ZERO_VERTICAL_VELOCITY_PIXELS_PER_SECOND = 0.0;
+
+    private static final double AIR_OBSTACLE_HORIZONTAL_RESTITUTION_FACTOR = 0.6;
+
+    private static final double AIR_OBSTACLE_VERTICAL_DAMPING_FACTOR = 0.6;
 
     private ProjectilePhysics()
     {
@@ -44,13 +69,22 @@ public final class ProjectilePhysics
             return false;
         }
 
-        final double gravityMultiplier =
-            (golfBall.getVelocityYPixelsPerSecond() < 0.0)
-                ? GRAVITY_MULTIPLIER_ASCENT
-                : GRAVITY_MULTIPLIER_DESCENT;
+        final double gravityMultiplier;
 
-        final double effectiveGravityPixelsPerSecondSquared =
-            GRAVITY_ACCELERATION_PIXELS_PER_SECOND_SQUARED * gravityMultiplier;
+        final double currentVerticalVelocityPixelsPerSecond;
+        currentVerticalVelocityPixelsPerSecond = golfBall.getVelocityYPixelsPerSecond();
+
+        if (currentVerticalVelocityPixelsPerSecond < ZERO_VERTICAL_VELOCITY_PIXELS_PER_SECOND)
+        {
+            gravityMultiplier = GRAVITY_MULTIPLIER_ASCENT;
+        }
+        else
+        {
+            gravityMultiplier = GRAVITY_MULTIPLIER_DESCENT;
+        }
+
+        final double effectiveGravityPixelsPerSecondSquared;
+        effectiveGravityPixelsPerSecondSquared = GRAVITY_ACCELERATION_PIXELS_PER_SECOND_SQUARED * gravityMultiplier;
 
         golfBall.updateFreeFlight(deltaTimeSeconds, effectiveGravityPixelsPerSecondSquared);
 
@@ -58,17 +92,27 @@ public final class ProjectilePhysics
         {
             golfBall.snapToGround(groundCenterYPixels);
 
-            if (Math.abs(golfBall.getVelocityYPixelsPerSecond())
+            final double absoluteVerticalVelocityPixelsPerSecond;
+            absoluteVerticalVelocityPixelsPerSecond = Math.abs(golfBall.getVelocityYPixelsPerSecond());
+
+            if (absoluteVerticalVelocityPixelsPerSecond
                 > LANDING_BOUNCE_THRESHOLD_PIXELS_PER_SECOND)
             {
-                golfBall.setVelocityYPixelsPerSecond(
-                    -golfBall.getVelocityYPixelsPerSecond() * 0.35);
+                final double newVerticalVelocityPixelsPerSecond;
+                newVerticalVelocityPixelsPerSecond = -golfBall.getVelocityYPixelsPerSecond()
+                                                     * LANDING_BOUNCE_ENERGY_RESTITUTION_FACTOR;
+
+                golfBall.setVelocityYPixelsPerSecond(newVerticalVelocityPixelsPerSecond);
             }
             else
             {
-                golfBall.setVelocityYPixelsPerSecond(0.0);
+                golfBall.setVelocityYPixelsPerSecond(ZERO_VERTICAL_VELOCITY_PIXELS_PER_SECOND);
 
-                final double rollFriction =
+                final double rollFriction;
+                final double newHorizontalVelocityPixelsPerSecond;
+                final double absoluteHorizontalVelocityPixelsPerSecond;
+
+                rollFriction =
                     switch (terrainTile.getTerrainType())
                     {
                         case SAND -> ROLL_FRICTION_FACTOR_SAND;
@@ -77,10 +121,13 @@ public final class ProjectilePhysics
                         default -> ROLL_FRICTION_FACTOR_DEFAULT;
                     };
 
-                golfBall.setVelocityXPixelsPerSecond(
-                    golfBall.getVelocityXPixelsPerSecond() * rollFriction);
+                newHorizontalVelocityPixelsPerSecond = golfBall.getVelocityXPixelsPerSecond() * rollFriction;
 
-                if (Math.abs(golfBall.getVelocityXPixelsPerSecond()) < 10.0)
+                golfBall.setVelocityXPixelsPerSecond(newHorizontalVelocityPixelsPerSecond);
+
+                absoluteHorizontalVelocityPixelsPerSecond = Math.abs(golfBall.getVelocityXPixelsPerSecond());
+
+                if (absoluteHorizontalVelocityPixelsPerSecond < ROLL_STOP_SPEED_THRESHOLD_PIXELS_PER_SECOND)
                 {
                     golfBall.stop();
                 }
@@ -100,18 +147,190 @@ public final class ProjectilePhysics
     public static double computeInitialSpeed(final double targetRangePixels,
                                              final double launchAngleDegrees)
     {
-        final double launchAngleRadians = Math.toRadians(launchAngleDegrees);
-        final double sinDoubleAngle = Math.sin(2.0 * launchAngleRadians);
+        final double launchAngleRadians;
+        final double sinDoubleAngle;
+        final double initialSpeedSquaredPixelsPerSecondSquared;
 
-        if (sinDoubleAngle <= 0.0)
+        launchAngleRadians = Math.toRadians(launchAngleDegrees);
+
+        sinDoubleAngle = Math.sin(PROJECTILE_DOUBLE_ANGLE_MULTIPLIER * launchAngleRadians);
+
+        if (sinDoubleAngle <= ZERO_SIN_ANGLE_THRESHOLD)
         {
-            return 0.0;
+            return MINIMUM_INITIAL_SPEED_PIXELS_PER_SECOND;
         }
 
-        return Math.sqrt(
-            targetRangePixels
-            * GRAVITY_ACCELERATION_PIXELS_PER_SECOND_SQUARED
-            / sinDoubleAngle
-                        );
+        initialSpeedSquaredPixelsPerSecondSquared = targetRangePixels
+                                                    * GRAVITY_ACCELERATION_PIXELS_PER_SECOND_SQUARED
+                                                    / sinDoubleAngle;
+
+        return Math.sqrt(initialSpeedSquaredPixelsPerSecondSquared);
+    }
+
+    /**
+     * Computes the maximum vertical height offset for terrain generation so that
+     * a full-power wedge at the maximum launch angle can still clear the
+     * highest cliffs. Uses the club's max range and gravity.
+     *
+     * @param wedgeGolfClub                wedge club to use
+     * @param maximumPowerPercentage       max power used for range
+     * @param fairwayDistanceMultiplier    terrain multiplier for fairway
+     * @param maximumLaunchAngleDegrees    maximum launch angle in degrees
+     * @param courseHeightSafetyFactor     safety factor to shrink the theoretical max
+     * @param minimumMaxHeightOffsetPixels minimum height if physics fails
+     * @return safe maximum height offset in pixels
+     */
+    public static double computeMaximumHeightOffsetForCourse(
+        final GolfClub wedgeGolfClub,
+        final double maximumPowerPercentage,
+        final double fairwayDistanceMultiplier,
+        final double maximumLaunchAngleDegrees,
+        final double courseHeightSafetyFactor,
+        final double minimumMaxHeightOffsetPixels)
+    {
+        final ShotContext fullPowerShotContext;
+        final ShotResult fullPowerWedgeShotResult;
+
+        fullPowerShotContext     = new ShotContext(maximumPowerPercentage, fairwayDistanceMultiplier);
+        fullPowerWedgeShotResult = wedgeGolfClub.computeShot(fullPowerShotContext);
+
+        final double maximumWedgeRangePixels;
+        final double gravityPixelsPerSecondSquared;
+        final double launchAngleRadians;
+        final double sinDoubleAngle;
+        final double initialSpeedSquaredPixelsPerSecondSquared;
+
+        maximumWedgeRangePixels = fullPowerWedgeShotResult.getExpectedHorizontalRangePixels();
+
+        gravityPixelsPerSecondSquared = getGravityAccelerationPixelsPerSecondSquared();
+
+        launchAngleRadians = Math.toRadians(maximumLaunchAngleDegrees);
+
+        sinDoubleAngle = Math.sin(PROJECTILE_DOUBLE_ANGLE_MULTIPLIER * launchAngleRadians);
+
+        if (sinDoubleAngle <= ZERO_SIN_ANGLE_THRESHOLD)
+        {
+            return minimumMaxHeightOffsetPixels;
+        }
+
+        // range = v^2 * sin(2θ) / g  -> v^2 = range * g / sin(2θ)
+        initialSpeedSquaredPixelsPerSecondSquared = maximumWedgeRangePixels
+                                                    * gravityPixelsPerSecondSquared
+                                                    / sinDoubleAngle;
+
+        final double sinAngle;
+        sinAngle = Math.sin(launchAngleRadians);
+
+        // H = v^2 * sin^2(θ) / (2g)
+        final double maximumApexHeightPixels;
+        maximumApexHeightPixels = (initialSpeedSquaredPixelsPerSecondSquared
+                                   * sinAngle * sinAngle)
+                                  / (PROJECTILE_APEX_DIVISOR * gravityPixelsPerSecondSquared);
+
+        final double safeMaximumHeightOffsetPixels;
+        safeMaximumHeightOffsetPixels = maximumApexHeightPixels * courseHeightSafetyFactor;
+
+        return Math.max(minimumMaxHeightOffsetPixels, safeMaximumHeightOffsetPixels);
+    }
+
+    /**
+     * Handles collisions between the golf ball and a collection of air obstacles.
+     * Applies a simple bounce effect by reflecting and damping the ball's velocity.
+     *
+     * @param golfBall     the golf ball whose motion is being simulated
+     * @param airObstacles list of air obstacles to test for collisions
+     * @return {@code true} if a collision occurred; {@code false} otherwise
+     */
+    public static boolean handleAirObstacleCollisions(final GolfBall golfBall,
+                                                      final List<AirObstacle> airObstacles)
+    {
+        if (airObstacles == null || airObstacles.isEmpty())
+        {
+            return false;
+        }
+
+        final double ballCenterXPixels;
+        final double ballCenterYPixels;
+        final double ballRadiusPixels;
+
+        ballCenterXPixels = golfBall.getPositionXPixels();
+
+        ballCenterYPixels = golfBall.getPositionYPixels();
+
+        ballRadiusPixels = golfBall.getRadiusPixels();
+
+        for (final AirObstacle airObstacle : airObstacles)
+        {
+            final double closestXPixels;
+            final double closestYPixels;
+            final double deltaXPixels;
+            final double deltaYPixels;
+            final double distanceSquaredPixels;
+
+            closestXPixels = clamp(ballCenterXPixels,
+                                   airObstacle.getLeftXPixels(),
+                                   airObstacle.getRightXPixels());
+
+            closestYPixels = clamp(ballCenterYPixels,
+                                   airObstacle.getTopYPixels(),
+                                   airObstacle.getBottomYPixels());
+
+            deltaXPixels = ballCenterXPixels - closestXPixels;
+
+            deltaYPixels = ballCenterYPixels - closestYPixels;
+
+            distanceSquaredPixels = deltaXPixels * deltaXPixels + deltaYPixels * deltaYPixels;
+
+            if (distanceSquaredPixels <= ballRadiusPixels * ballRadiusPixels)
+            {
+                final double currentVelocityXPixelsPerSecond;
+                final double currentVelocityYPixelsPerSecond;
+                final double newHorizontalVelocityXPixelsPerSecond;
+                final double newVerticalVelocityYPixelsPerSecond;
+
+
+                currentVelocityXPixelsPerSecond = golfBall.getVelocityXPixelsPerSecond();
+
+                currentVelocityYPixelsPerSecond = golfBall.getVelocityYPixelsPerSecond();
+
+                newHorizontalVelocityXPixelsPerSecond = -currentVelocityXPixelsPerSecond
+                                                        * AIR_OBSTACLE_HORIZONTAL_RESTITUTION_FACTOR;
+
+                newVerticalVelocityYPixelsPerSecond = -currentVelocityYPixelsPerSecond
+                                                      * AIR_OBSTACLE_VERTICAL_DAMPING_FACTOR;
+
+                golfBall.setVelocityXPixelsPerSecond(newHorizontalVelocityXPixelsPerSecond);
+                golfBall.setVelocityYPixelsPerSecond(newVerticalVelocityYPixelsPerSecond);
+
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * Clamps a value between a minimum and maximum.
+     *
+     * @param value   the value to clamp
+     * @param minimum the minimum allowed value
+     * @param maximum the maximum allowed value
+     * @return the clamped value between {@code minimum} and {@code maximum}
+     */
+    private static double clamp(final double value,
+                                final double minimum,
+                                final double maximum)
+    {
+        return Math.max(minimum, Math.min(maximum, value));
+    }
+
+    /**
+     * Gets the gravity acceleration used in the projectile calculations.
+     *
+     * @return gravity acceleration in pixels per second squared
+     */
+    public static double getGravityAccelerationPixelsPerSecondSquared()
+    {
+        return GRAVITY_ACCELERATION_PIXELS_PER_SECOND_SQUARED;
     }
 }
