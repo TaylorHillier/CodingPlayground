@@ -1,0 +1,56 @@
+One of the best parts of using the AI during this project was leveraging it for complex math and physics logic. Whenever
+I described a specific requirement—like mapping a “power percentage” to an initial velocity, adjusting the expected
+horizontal range by club type, or calculating projectile motion with angles expressed in degrees—the AI could quickly
+derive the equations and explain how each variable interacted. It helped convert textbook formulas into practical game
+logic: converting degrees to radians, splitting velocity into horizontal and vertical components, clamping unrealistic
+angles, and preventing atan2 from producing unstable output when delta-x was extremely small. This saved a lot of time
+compared to re-deriving everything manually while still forcing me to understand each line to ensure it aligned with
+COMP2522 expectations. I want to overstate how useful it is for common but complex logic like this—providing formulas,
+generating function signatures, and building small scaffolding pieces of code. It is extremely good at giving you a
+starting point if you are stuck, especially when you know what you want but haven’t figured out the exact implementation
+yet.
+
+The AI was also helpful for learning new JavaFX mechanics that can be finicky the first time. I used a CountDownLatch to
+block the main thread until the JavaFX window closed, and the AI walked through how to bind that correctly without
+introducing concurrency issues. Animation looked intimidating at first but AI broke it down very well for me.
+For animation, it suggested the standard AnimationTimer pattern: keep a lastUpdateNanoseconds field,
+compute a small time period, and then call update and render functions at each frame.
+
+The AI frequently assisted with code organization and adherence to COMP2522 practices: using private static final
+constants for magic numbers, making fields final when appropriate, structuring methods so each one had a single
+responsibility, and avoiding APIs or techniques we haven’t covered. In several cases,
+I also had it rewrite its own output to match the naming conventions, brace style, and modularity that the
+course expects.
+
+However, a major recurring issue was that the AI constantly produced unclear or messy code unless I specifically
+instructed it otherwise. This happened in multiple forms: inconsistent variable naming, deeply nested logic without
+explanation, duplicated blocks, or methods that mixed responsibilities. I repeatedly had to step in and rewrite parts of
+the logic myself so that they were readable, coherent, and consistent with the rest
+of the project. In several cases the AI’s code “worked,” but only barely, and I felt the need to refactor it so that
+future changes wouldn't become impossible. This frequently meant rewriting conditionals to be clearer, reorganizing
+fields so they were initialized in proper places, and simplifying logic that the AI had made unnecessarily complicated.
+Even after receiving a working answer from the AI, I often treated it only as a rough draft.
+
+The biggest recurring issue was the AI forgetting the current structure of
+my code or the constraints of the assignment. As the project grew, it routinely lost awareness of which class
+owned which responsibility. It would sometimes try to reference fields that no longer existed, suggest logic that
+contradicted earlier design decisions, or accidentally propose entire rewrites that broke functionality.
+I often had to manually step in, correct its assumptions, and remind it of the existing class layout.
+
+Terrain generation was the area where the AI struggled the most at first. I needed each hole to be
+composed of TerrainTile objects with controlled height variation, specific terrain types, and guaranteed playability.
+When I first asked for help, it produced terrain that was either completely flat, or randomly jagged in ways that made
+shots impossible, or terrain that didn’t match the expected coordinate system.
+
+Another recurring issue was that the AI occasionally generated code that technically compiled but failed
+logically—forgetting to reset certain variables when starting a new hole, calculating range incorrectly for
+backward shots, or placing the camera offset in a wrong state. Fixing this required me to trace through the state
+transitions between methods like initializeBallAtTee(), performShot(), updateMovingBall(), and handleBallStop().
+I ended up doing a lot of debugging and refactoring manually to maintain consistency and prevent edge-case bugs.
+
+Overall, the best parts of working with the AI were rapid assistance with math-heavy parts, quick generation of
+boilerplate, and help with JavaFX idioms that could have taken much longer to get right on my own. The worst parts
+were its tendency to drift out of scope, forget earlier decisions, suggest patterns outside the COMP2522 style,
+or create small logical mistakes that only became visible during testing. The final game is a direct result of my
+design, my debugging, and my corrections, with the AI functioning more like a helpful but sometimes unreliable
+assistant.
